@@ -53,6 +53,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .nd { font-size: 11px; color: var(--text3); margin-top: 3px; font-family: var(--mono); }
 .empty-msg { padding: 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); }
 
+/* Condensed mode */
+#s-list.condensed .nitem { padding: 7px 14px; }
+#s-list.condensed .nt { margin-bottom: 0; }
+#s-list.condensed .np { display: none; }
+#s-list.condensed .nd { display: none; }
+
 /* Main */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 #m-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); gap: 8px; font-size: 13px; font-family: var(--mono); }
@@ -151,6 +157,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="s-head">
       <span id="s-label">Memo</span>
       <div id="s-head-btns">
+        <button class="hbtn" id="density-btn" title="表示切替" onclick="toggleDensity()" style="font-size:12px;font-family:var(--mono);">≡</button>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
         <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
       </div>
@@ -392,6 +399,17 @@ async function restoreNote() {
     document.getElementById('m-empty').style.display = 'flex';
     renderList();
   } catch(e) { console.error(e); }
+}
+
+/* ── Density toggle ── */
+let isCondensed = false;
+function toggleDensity() {
+  isCondensed = !isCondensed;
+  const list = document.getElementById('s-list');
+  const btn  = document.getElementById('density-btn');
+  list.classList.toggle('condensed', isCondensed);
+  btn.className  = isCondensed ? 'hbtn on' : 'hbtn';
+  btn.title      = isCondensed ? 'Expanded表示に切替' : 'Condensed表示に切替';
 }
 
 /* ── Trash toggle ── */
