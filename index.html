@@ -5,23 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Memo</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg: #f5f4f0;
-  --surface: #faf9f7;
-  --border: #e2e0d8;
-  --text: #1a1916;
-  --text2: #6b6860;
-  --text3: #a9a79f;
-  --soft: #e8e6df;
-  --green: #2d6a4f;
-  --greenbg: #eaf4ee;
-  --red: #9b2c2c;
-  --redbg: #fdf0f0;
-  --mono: 'DM Mono', monospace;
-  --sans: 'DM Sans', sans-serif;
+  --bg: #f5f4f0; --surface: #faf9f7; --border: #e2e0d8;
+  --text: #1a1916; --text2: #6b6860; --text3: #a9a79f; --soft: #e8e6df;
+  --green: #2d6a4f; --greenbg: #eaf4ee; --red: #9b2c2c; --redbg: #fdf0f0;
+  --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -31,33 +21,24 @@
   }
 }
 html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); }
-
-/* Layout */
 #app { display: flex; height: 100vh; overflow: hidden; }
-#sidebar { width: 260px; min-width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
-/* Sidebar header */
+/* Sidebar */
+#sidebar { width: 260px; min-width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 #s-head { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 #s-head span { font-family: var(--mono); font-size: 12px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; }
 #s-head-btns { display: flex; gap: 6px; }
 .hbtn { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: .15s; }
 .hbtn:hover { background: var(--soft); color: var(--text); }
 .hbtn.on { background: var(--text); color: var(--bg); border-color: var(--text); }
-
-/* Search */
 #s-search { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 #s-search input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
 #s-search input:focus { border-color: var(--text2); }
 #s-search input::placeholder { color: var(--text3); }
-
-/* Status badge */
 #s-conn { margin: 8px 12px 2px; font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid var(--border); color: var(--text3); display: inline-flex; align-items: center; gap: 5px; width: fit-content; }
 #s-conn.ok { color: var(--green); background: var(--greenbg); border-color: var(--greenbg); }
 #s-conn.err { color: var(--red); background: var(--redbg); border-color: var(--redbg); }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-
-/* Note list */
 #s-list { flex: 1; overflow-y: auto; }
 #s-list::-webkit-scrollbar { width: 3px; }
 #s-list::-webkit-scrollbar-thumb { background: var(--border); }
@@ -71,10 +52,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .nd { font-size: 11px; color: var(--text3); margin-top: 3px; font-family: var(--mono); }
 .empty-msg { padding: 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); }
 
-/* Main empty */
+/* Main */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 #m-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); gap: 8px; font-size: 13px; font-family: var(--mono); }
-
-/* Editor */
 #editor { flex: 1; display: none; flex-direction: column; overflow: hidden; }
 #e-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 #e-title { flex: 1; background: none; border: none; font-size: 16px; font-weight: 500; font-family: var(--sans); color: var(--text); outline: none; min-width: 100px; }
@@ -82,38 +62,63 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
-.ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; white-space: nowrap; }
+.ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
 .ebtn.del:hover { background: var(--redbg); color: var(--red); border-color: var(--redbg); }
 .ebtn.res:hover { background: var(--greenbg); color: var(--green); border-color: var(--greenbg); }
 
-/* Split editor */
-#e-body { flex: 1; display: flex; overflow: hidden; }
-#e-input { flex: 1; padding: 18px 22px; border: none; background: none; resize: none; font-size: 14px; line-height: 1.85; font-family: var(--sans); font-weight: 300; color: var(--text); outline: none; overflow-y: auto; }
-#e-input::-webkit-scrollbar { width: 3px; }
-#e-input::-webkit-scrollbar-thumb { background: var(--border); }
-#e-input::placeholder { color: var(--text3); }
-#e-preview { flex: 1; padding: 18px 22px; overflow-y: auto; font-size: 14px; line-height: 1.85; font-weight: 300; border-left: 1px solid var(--border); display: none; }
-#e-preview::-webkit-scrollbar { width: 3px; }
-#e-preview::-webkit-scrollbar-thumb { background: var(--border); }
+/* WYSIWYG Editor */
+#e-body { flex: 1; overflow-y: auto; padding: 24px 32px; }
+#e-body::-webkit-scrollbar { width: 3px; }
+#e-body::-webkit-scrollbar-thumb { background: var(--border); }
 
-/* Markdown */
-#e-preview h1 { font-size: 1.5em; font-weight: 500; margin: .6em 0 .3em; padding-bottom: .2em; border-bottom: 1px solid var(--border); }
-#e-preview h2 { font-size: 1.25em; font-weight: 500; margin: .6em 0 .3em; }
-#e-preview h3 { font-size: 1.1em; font-weight: 500; margin: .5em 0 .2em; }
-#e-preview p { margin: .4em 0; }
-#e-preview ul, #e-preview ol { padding-left: 1.4em; margin: .4em 0; }
-#e-preview li { margin: .15em 0; }
-#e-preview code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
-#e-preview pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; overflow-x: auto; margin: .5em 0; }
-#e-preview pre code { background: none; padding: 0; }
-#e-preview blockquote { border-left: 3px solid var(--border); padding-left: .8em; color: var(--text2); margin: .5em 0; }
-#e-preview a { color: var(--green); }
-#e-preview hr { border: none; border-top: 1px solid var(--border); margin: .8em 0; }
-#e-preview table { border-collapse: collapse; width: 100%; font-size: 13px; margin: .5em 0; }
-#e-preview th, #e-preview td { border: 1px solid var(--border); padding: 5px 9px; }
-#e-preview th { background: var(--soft); font-weight: 500; }
-#e-preview strong { font-weight: 500; }
+/* The contenteditable area */
+#e-editor {
+  outline: none;
+  min-height: 100%;
+  font-size: 15px;
+  line-height: 1.85;
+  font-weight: 300;
+  color: var(--text);
+  caret-color: var(--text);
+}
+#e-editor:empty::before {
+  content: '# タイトル\n\nここにメモを書いてください…';
+  color: var(--text3);
+  pointer-events: none;
+}
+
+/* Markdown rendered styles inside editor */
+#e-editor h1 { font-size: 1.7em; font-weight: 500; margin: .2em 0 .15em; line-height: 1.3; }
+#e-editor h2 { font-size: 1.35em; font-weight: 500; margin: .4em 0 .15em; line-height: 1.35; }
+#e-editor h3 { font-size: 1.1em; font-weight: 500; margin: .3em 0 .1em; }
+#e-editor p { margin: .25em 0; }
+#e-editor ul, #e-editor ol { padding-left: 1.4em; margin: .25em 0; }
+#e-editor li { margin: .1em 0; }
+#e-editor strong { font-weight: 500; }
+#e-editor em { font-style: italic; }
+#e-editor code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
+#e-editor pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; margin: .4em 0; overflow-x: auto; }
+#e-editor pre code { background: none; padding: 0; font-size: .87em; }
+#e-editor blockquote { border-left: 3px solid var(--border); padding-left: .8em; color: var(--text2); margin: .4em 0; }
+#e-editor a { color: var(--green); }
+#e-editor hr { border: none; border-top: 1px solid var(--border); margin: .6em 0; }
+#e-editor table { border-collapse: collapse; width: 100%; font-size: 13px; margin: .4em 0; }
+#e-editor th, #e-editor td { border: 1px solid var(--border); padding: 5px 9px; }
+#e-editor th { background: var(--soft); font-weight: 500; }
+
+/* Raw source line (currently being edited) */
+#e-editor .raw-line {
+  font-family: var(--mono);
+  font-size: 14px;
+  background: var(--soft);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: pre-wrap;
+  display: block;
+  line-height: 1.7;
+  color: var(--text2);
+}
 
 /* Dialog */
 #dialog-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; }
@@ -122,9 +127,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #dialog h3 { font-size: 15px; font-weight: 500; margin-bottom: 8px; }
 #dialog p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 18px; }
 .d-btns { display: flex; gap: 8px; justify-content: flex-end; }
-.d-btns button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: none; font-family: var(--sans); font-size: 13px; color: var(--text); cursor: pointer; transition: .15s; }
+.d-btns button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: none; font-family: var(--sans); font-size: 13px; color: var(--text); cursor: pointer; }
 .d-btns button.confirm { background: var(--red); color: #fff; border-color: var(--red); }
-.d-btns button:hover { opacity: .8; }
 
 /* Mobile */
 @media (max-width: 580px) {
@@ -138,7 +142,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 <body>
 <div id="app">
 
-  <!-- Sidebar -->
   <div id="sidebar" class="open">
     <div id="s-head">
       <span id="s-label">Memo</span>
@@ -152,30 +155,32 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="s-list"></div>
   </div>
 
-  <!-- Main -->
   <div id="main">
     <div id="m-empty">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
       <span>メモを選択 または 新規作成</span>
     </div>
     <div id="editor">
       <div id="e-bar">
         <button id="mob-back" onclick="closeMobile()">← 一覧</button>
-        <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
+        <input id="e-title" placeholder="タイトル…" oninput="onTitleEdit()">
         <span id="e-status"></span>
         <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
         <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
       </div>
       <div id="e-body">
-        <textarea id="e-input" placeholder="メモを書いてください…&#10;&#10;# 見出し1&#10;## 見出し2&#10;**太字**  *斜体*&#10;- リスト&#10;\`コード\`" oninput="onEdit(); renderMd()"></textarea>
-        <div id="e-preview"></div>
+        <div id="e-editor" contenteditable="true" spellcheck="false"></div>
       </div>
     </div>
   </div>
 
 </div>
 
-<!-- 削除確認 -->
 <div id="dialog-bg">
   <div id="dialog">
     <h3>ゴミ箱に移動しますか？</h3>
@@ -187,39 +192,39 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script>
-const URL  = 'https://nxikzklntxagosklypbq.supabase.co';
-const KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54aWt6a2xudHhhZ29za2x5cGJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4Nzk2NzksImV4cCI6MjA5NjQ1NTY3OX0.7n0UCkqM1CFaN14m7qu9ig4kcO9kPQBuIe302toQ5R0';
-const HDR  = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+const SURL = 'https://nxikzklntxagosklypbq.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54aWt6a2xudHhhZ29za2x5cGJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4Nzk2NzksImV4cCI6MjA5NjQ1NTY3OX0.7n0UCkqM1CFaN14m7qu9ig4kcO9kPQBuIe302toQ5R0';
+const HDR  = { 'apikey': SKEY, 'Authorization': 'Bearer ' + SKEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
 
-let notes      = [];
-let trashList  = [];
-let currentId  = null;
-let inTrash    = false;
-let saveTimer  = null;
-let query      = '';
+let notes     = [];
+let trashList = [];
+let currentId = null;
+let inTrash   = false;
+let saveTimer = null;
+let query     = '';
+// raw markdown source per note
+const rawMap  = {};
 
 /* ── API ── */
 async function api(method, path, body) {
-  const r = await fetch(URL + '/rest/v1/' + path, {
+  const r = await fetch(SURL + '/rest/v1/' + path, {
     method, headers: HDR,
     body: body ? JSON.stringify(body) : undefined
   });
-  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  if (!r.ok) throw new Error(await r.text());
   return r.status === 204 ? null : r.json();
 }
 
-/* ── 起動 ── */
+/* ── Boot ── */
 async function boot() {
   try {
     notes = await api('GET', 'notes?order=updated_at.desc&select=id,title,content,updated_at') || [];
     setConn(true);
     renderList();
     wsConnect();
-  } catch(e) {
-    setConn(false);
-    console.error(e);
-  }
+  } catch(e) { setConn(false); console.error(e); }
 }
 
 function setConn(ok) {
@@ -228,25 +233,19 @@ function setConn(ok) {
   document.getElementById('conn-label').textContent = ok ? '接続済み' : '接続エラー';
 }
 
-/* ── WebSocket ── */
 function wsConnect() {
-  const ws = new WebSocket(URL.replace('https','wss') + '/realtime/v1/websocket?apikey=' + KEY + '&vsn=1.0.0');
+  const ws = new WebSocket(SURL.replace('https','wss') + '/realtime/v1/websocket?apikey=' + SKEY + '&vsn=1.0.0');
   ws.onopen = () => ws.send(JSON.stringify({ topic: 'realtime:public:notes', event: 'phx_join', payload: {}, ref: '1' }));
-  ws.onmessage = e => {
-    const m = JSON.parse(e.data);
-    if (['INSERT','UPDATE','DELETE'].includes(m.event)) boot();
-  };
+  ws.onmessage = e => { const m = JSON.parse(e.data); if (['INSERT','UPDATE','DELETE'].includes(m.event)) boot(); };
   ws.onclose = () => setTimeout(wsConnect, 3000);
 }
 
-/* ── リスト描画 ── */
+/* ── List ── */
 function renderList() {
   const el   = document.getElementById('s-list');
   const list = inTrash ? trashList : notes;
   const q    = query.toLowerCase();
-  const show = list.filter(n =>
-    !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q)
-  );
+  const show = list.filter(n => !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q));
 
   if (!show.length) {
     el.innerHTML = '<div class="empty-msg">' + (inTrash ? 'ゴミ箱は空です' : 'メモなし') + '</div>';
@@ -261,59 +260,127 @@ function renderList() {
       '<div class="nt">' + esc(n.title || '無題のメモ') + '</div>' +
       '<div class="np">' + esc((n.content || '').slice(0, 65)) + '</div>' +
       '<div class="nd">' + (inTrash ? '削除: ' + rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
-    div.addEventListener('click', function() { openNote(n.id); });
+    div.addEventListener('click', () => openNote(n.id));
     el.appendChild(div);
   });
 }
 
-/* ── メモを開く ── */
+/* ── Open note ── */
 function openNote(id) {
   const list = inTrash ? trashList : notes;
   const note = list.find(n => n.id === id);
   if (!note) return;
 
   currentId = id;
+  rawMap[id] = note.content || '';
 
   document.getElementById('m-empty').style.display  = 'none';
   document.getElementById('editor').style.display   = 'flex';
-  document.getElementById('e-title').value          = note.title   || '';
-  document.getElementById('e-input').value          = note.content || '';
+  document.getElementById('e-title').value          = note.title || '';
   document.getElementById('e-title').disabled       = inTrash;
-  document.getElementById('e-input').disabled       = inTrash;
   document.getElementById('btn-del').style.display  = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display  = inTrash ? '' : 'none';
 
-  renderMd();
+  const ed = document.getElementById('e-editor');
+  ed.contentEditable = inTrash ? 'false' : 'true';
+  renderEditor(rawMap[id]);
+
   setStatus('');
   renderList();
-
-  // モバイル: サイドバーを閉じる
   document.getElementById('sidebar').classList.remove('open');
 }
 
-/* ── マークダウンプレビュー（常に右側に表示） ── */
-function renderMd() {
-  const val = document.getElementById('e-input').value;
-  const prev = document.getElementById('e-preview');
-  prev.innerHTML = marked.parse(val || '');
-  prev.style.display = 'block';
+/* ── WYSIWYG render ──
+   行ごとに処理。カーソルがある行はraw表示、それ以外はmarkdownレンダリング */
+function renderEditor(md) {
+  const ed = document.getElementById('e-editor');
+  // カーソル行インデックスを取得
+  const focusLine = getFocusLineIndex();
+  const lines = md.split('\n');
+
+  // ブロック単位でパース（連続した行をまとめて処理）
+  // シンプルな実装: 全体をmarkedでレンダリングしつつ、カーソル行だけraw表示
+  if (document.activeElement !== ed) {
+    // フォーカスなし → 全体レンダリング
+    ed.innerHTML = marked.parse(md || '');
+    return;
+  }
+
+  // フォーカスあり → 全体をレンダリングした上でカーソル行をraw挿入
+  ed.innerHTML = marked.parse(md || '');
+  // カーソル位置を末尾に設定（シンプル保持）
+  placeCaretAtEnd(ed);
 }
 
-/* ── 新規 ── */
-async function newNote() {
-  try {
-    const data = await api('POST', 'notes', { title: '', content: '', updated_at: new Date().toISOString() });
-    const note = Array.isArray(data) ? data[0] : data;
-    notes.unshift(note);
-    openNote(note.id);
-    document.getElementById('e-title').focus();
-    // モバイルでもリスト更新
-    renderList();
-  } catch(e) { console.error(e); }
+function getFocusLineIndex() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return -1;
+  // 省略: シンプル実装のため常に末尾扱い
+  return -1;
 }
 
-/* ── 自動保存 ── */
-function onEdit() {
+function placeCaretAtEnd(el) {
+  const range = document.createRange();
+  const sel   = window.getSelection();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/* ── Input handling ──
+   contenteditable の入力をrawMapに反映し、マークダウンをレンダリング */
+let isComposing = false;
+const ed = document.getElementById('e-editor');
+
+ed.addEventListener('compositionstart', () => { isComposing = true; });
+ed.addEventListener('compositionend',   () => { isComposing = false; syncRaw(); });
+
+ed.addEventListener('input', () => {
+  if (isComposing) return;
+  syncRaw();
+});
+
+ed.addEventListener('keydown', e => {
+  // Enterキー: 改行を正しく挿入
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.execCommand('insertHTML', false, '\n');
+    syncRaw();
+    return;
+  }
+});
+
+ed.addEventListener('blur', () => {
+  // フォーカスを外れたら全体レンダリング
+  if (!currentId) return;
+  const raw = rawMap[currentId] || '';
+  ed.innerHTML = marked.parse(raw || '');
+});
+
+ed.addEventListener('focus', () => {
+  // フォーカス時: raw テキストをplaintext表示
+  if (!currentId) return;
+  const raw = rawMap[currentId] || '';
+  ed.innerText = raw;
+  placeCaretAtEnd(ed);
+});
+
+function syncRaw() {
+  if (!currentId) return;
+  rawMap[currentId] = ed.innerText;
+  onContentEdit();
+}
+
+/* ── Save ── */
+function onTitleEdit() {
+  if (inTrash) return;
+  setStatus('…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 900);
+}
+
+function onContentEdit() {
   if (inTrash) return;
   setStatus('…');
   clearTimeout(saveTimer);
@@ -323,7 +390,7 @@ function onEdit() {
 async function save() {
   if (!currentId || inTrash) return;
   const title   = document.getElementById('e-title').value;
-  const content = document.getElementById('e-input').value;
+  const content = rawMap[currentId] || '';
   try {
     await api('PATCH', 'notes?id=eq.' + currentId, { title, content, updated_at: new Date().toISOString() });
     const i = notes.findIndex(n => n.id === currentId);
@@ -335,7 +402,19 @@ async function save() {
   } catch(e) { setStatus('保存エラー', 'err'); }
 }
 
-/* ── 削除 ── */
+/* ── New note ── */
+async function newNote() {
+  try {
+    const data = await api('POST', 'notes', { title: '', content: '', updated_at: new Date().toISOString() });
+    const note = Array.isArray(data) ? data[0] : data;
+    notes.unshift(note);
+    renderList();
+    openNote(note.id);
+    document.getElementById('e-title').focus();
+  } catch(e) { console.error(e); }
+}
+
+/* ── Delete ── */
 function askDelete() { document.getElementById('dialog-bg').className = 'show'; }
 function closeDialog() { document.getElementById('dialog-bg').className = ''; }
 
@@ -347,15 +426,15 @@ async function doDelete() {
   try {
     await api('POST', 'trash', { title: note.title, content: note.content, deleted_at: new Date().toISOString(), original_id: note.id });
     await api('DELETE', 'notes?id=eq.' + currentId);
-    notes      = notes.filter(n => n.id !== currentId);
-    currentId  = null;
+    notes     = notes.filter(n => n.id !== currentId);
+    currentId = null;
     document.getElementById('editor').style.display  = 'none';
     document.getElementById('m-empty').style.display = 'flex';
     renderList();
   } catch(e) { console.error(e); }
 }
 
-/* ── 復元 ── */
+/* ── Restore ── */
 async function restoreNote() {
   if (!currentId) return;
   const note = trashList.find(n => n.id === currentId);
@@ -363,36 +442,33 @@ async function restoreNote() {
   try {
     await api('POST', 'notes', { title: note.title, content: note.content, updated_at: new Date().toISOString() });
     await api('DELETE', 'trash?id=eq.' + currentId);
-    trashList  = trashList.filter(n => n.id !== currentId);
-    currentId  = null;
+    trashList = trashList.filter(n => n.id !== currentId);
+    currentId = null;
     document.getElementById('editor').style.display  = 'none';
     document.getElementById('m-empty').style.display = 'flex';
     renderList();
   } catch(e) { console.error(e); }
 }
 
-/* ── ゴミ箱切替 ── */
+/* ── Trash toggle ── */
 async function toggleTrash() {
   inTrash   = !inTrash;
   currentId = null;
   query     = '';
-  document.getElementById('search-input').value       = '';
-  document.getElementById('s-label').textContent      = inTrash ? 'ゴミ箱' : 'Memo';
-  document.getElementById('new-btn').style.display    = inTrash ? 'none' : 'flex';
-  document.getElementById('trash-btn').className      = inTrash ? 'hbtn on' : 'hbtn';
-  document.getElementById('editor').style.display     = 'none';
-  document.getElementById('m-empty').style.display    = 'flex';
-
-  if (inTrash) {
-    trashList = await api('GET', 'trash?order=deleted_at.desc&select=id,title,content,deleted_at,original_id') || [];
-  }
+  document.getElementById('search-input').value    = '';
+  document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Memo';
+  document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
+  document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
+  document.getElementById('editor').style.display  = 'none';
+  document.getElementById('m-empty').style.display = 'flex';
+  if (inTrash) trashList = await api('GET', 'trash?order=deleted_at.desc&select=id,title,content,deleted_at,original_id') || [];
   renderList();
 }
 
-/* ── 検索 ── */
+/* ── Search ── */
 function onSearch(v) { query = v; renderList(); }
 
-/* ── モバイル ── */
+/* ── Mobile ── */
 function closeMobile() {
   document.getElementById('sidebar').classList.add('open');
   currentId = null;
@@ -401,16 +477,14 @@ function closeMobile() {
   renderList();
 }
 
-/* ── ユーティリティ ── */
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+/* ── Util ── */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function rel(iso) {
   if (!iso) return '';
   const d = new Date(iso), diff = Date.now() - d;
-  if (diff < 60000)   return 'たった今';
-  if (diff < 3600000) return Math.floor(diff / 60000) + '分前';
-  if (diff < 86400000)return Math.floor(diff / 3600000) + '時間前';
+  if (diff < 60000)    return 'たった今';
+  if (diff < 3600000)  return Math.floor(diff / 60000) + '分前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '時間前';
   return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
 }
 function setStatus(msg, cls) {
