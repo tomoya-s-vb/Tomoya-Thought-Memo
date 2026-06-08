@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Memo</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -56,6 +57,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 #m-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); gap: 8px; font-size: 13px; font-family: var(--mono); }
 #editor { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+
+/* Editor bar */
 #e-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 #e-title { flex: 1; background: none; border: none; font-size: 16px; font-weight: 500; font-family: var(--sans); color: var(--text); outline: none; min-width: 100px; }
 #e-title::placeholder { color: var(--text3); font-weight: 300; }
@@ -64,61 +67,62 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status.err { color: var(--red); }
 .ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
+.ebtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 .ebtn.del:hover { background: var(--redbg); color: var(--red); border-color: var(--redbg); }
 .ebtn.res:hover { background: var(--greenbg); color: var(--green); border-color: var(--greenbg); }
 
-/* WYSIWYG Editor */
-#e-body { flex: 1; overflow-y: auto; padding: 24px 32px; }
-#e-body::-webkit-scrollbar { width: 3px; }
-#e-body::-webkit-scrollbar-thumb { background: var(--border); }
+/* Editor body: split pane */
+#e-body { flex: 1; display: flex; overflow: hidden; }
 
-/* The contenteditable area */
-#e-editor {
-  outline: none;
-  min-height: 100%;
-  font-size: 15px;
+#e-input {
+  flex: 1;
+  padding: 20px 24px;
+  border: none;
+  background: none;
+  resize: none;
+  font-size: 14px;
   line-height: 1.85;
+  font-family: var(--mono);
   font-weight: 300;
   color: var(--text);
-  caret-color: var(--text);
+  outline: none;
+  overflow-y: auto;
 }
-#e-editor:empty::before {
-  content: '# タイトル\n\nここにメモを書いてください…';
-  color: var(--text3);
-  pointer-events: none;
-}
+#e-input::-webkit-scrollbar { width: 3px; }
+#e-input::-webkit-scrollbar-thumb { background: var(--border); }
+#e-input::placeholder { color: var(--text3); }
 
-/* Markdown rendered styles inside editor */
-#e-editor h1 { font-size: 1.7em; font-weight: 500; margin: .2em 0 .15em; line-height: 1.3; }
-#e-editor h2 { font-size: 1.35em; font-weight: 500; margin: .4em 0 .15em; line-height: 1.35; }
-#e-editor h3 { font-size: 1.1em; font-weight: 500; margin: .3em 0 .1em; }
-#e-editor p { margin: .25em 0; }
-#e-editor ul, #e-editor ol { padding-left: 1.4em; margin: .25em 0; }
-#e-editor li { margin: .1em 0; }
-#e-editor strong { font-weight: 500; }
-#e-editor em { font-style: italic; }
-#e-editor code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
-#e-editor pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; margin: .4em 0; overflow-x: auto; }
-#e-editor pre code { background: none; padding: 0; font-size: .87em; }
-#e-editor blockquote { border-left: 3px solid var(--border); padding-left: .8em; color: var(--text2); margin: .4em 0; }
-#e-editor a { color: var(--green); }
-#e-editor hr { border: none; border-top: 1px solid var(--border); margin: .6em 0; }
-#e-editor table { border-collapse: collapse; width: 100%; font-size: 13px; margin: .4em 0; }
-#e-editor th, #e-editor td { border: 1px solid var(--border); padding: 5px 9px; }
-#e-editor th { background: var(--soft); font-weight: 500; }
-
-/* Raw source line (currently being edited) */
-#e-editor .raw-line {
-  font-family: var(--mono);
+#e-preview {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
   font-size: 14px;
-  background: var(--soft);
-  border-radius: 4px;
-  padding: 2px 6px;
-  white-space: pre-wrap;
-  display: block;
-  line-height: 1.7;
-  color: var(--text2);
+  line-height: 1.85;
+  font-weight: 300;
+  border-left: 1px solid var(--border);
+  display: none;
 }
+#e-preview::-webkit-scrollbar { width: 3px; }
+#e-preview::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* Preview markdown styles */
+#e-preview h1 { font-size: 1.6em; font-weight: 500; margin: .4em 0 .3em; padding-bottom: .2em; border-bottom: 1px solid var(--border); line-height: 1.3; }
+#e-preview h2 { font-size: 1.3em; font-weight: 500; margin: .6em 0 .2em; line-height: 1.3; }
+#e-preview h3 { font-size: 1.1em; font-weight: 500; margin: .5em 0 .2em; }
+#e-preview p { margin: .35em 0; }
+#e-preview ul, #e-preview ol { padding-left: 1.4em; margin: .3em 0; }
+#e-preview li { margin: .1em 0; }
+#e-preview strong { font-weight: 500; }
+#e-preview em { font-style: italic; }
+#e-preview code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
+#e-preview pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; margin: .4em 0; overflow-x: auto; }
+#e-preview pre code { background: none; padding: 0; }
+#e-preview blockquote { border-left: 3px solid var(--border); padding-left: .8em; color: var(--text2); margin: .4em 0; }
+#e-preview a { color: var(--green); }
+#e-preview hr { border: none; border-top: 1px solid var(--border); margin: .6em 0; }
+#e-preview table { border-collapse: collapse; width: 100%; font-size: 13px; margin: .4em 0; }
+#e-preview th, #e-preview td { border: 1px solid var(--border); padding: 5px 9px; }
+#e-preview th { background: var(--soft); font-weight: 500; }
 
 /* Dialog */
 #dialog-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; }
@@ -135,6 +139,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #sidebar { position: fixed; inset: 0; z-index: 10; width: 100% !important; transform: translateX(-100%); transition: transform .25s; }
   #sidebar.open { transform: translateX(0); }
   #mob-back { display: flex !important; }
+  #e-preview { display: none !important; }
 }
 #mob-back { display: none; align-items: center; gap: 5px; background: none; border: none; cursor: pointer; color: var(--text2); font-size: 13px; font-family: var(--sans); padding: 4px 0; flex-shrink: 0; }
 </style>
@@ -165,16 +170,21 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </svg>
       <span>メモを選択 または 新規作成</span>
     </div>
+
     <div id="editor">
       <div id="e-bar">
         <button id="mob-back" onclick="closeMobile()">← 一覧</button>
-        <input id="e-title" placeholder="タイトル…" oninput="onTitleEdit()">
+        <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
+        <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
         <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
         <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
       </div>
       <div id="e-body">
-        <div id="e-editor" contenteditable="true" spellcheck="false"></div>
+        <textarea id="e-input"
+          placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
+          oninput="onEdit(); updatePreview()"></textarea>
+        <div id="e-preview"></div>
       </div>
     </div>
   </div>
@@ -192,7 +202,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script>
 const SURL = 'https://nxikzklntxagosklypbq.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54aWt6a2xudHhhZ29za2x5cGJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4Nzk2NzksImV4cCI6MjA5NjQ1NTY3OX0.7n0UCkqM1CFaN14m7qu9ig4kcO9kPQBuIe302toQ5R0';
@@ -204,8 +213,7 @@ let currentId = null;
 let inTrash   = false;
 let saveTimer = null;
 let query     = '';
-// raw markdown source per note
-const rawMap  = {};
+let showPreview = false;
 
 /* ── API ── */
 async function api(method, path, body) {
@@ -236,7 +244,10 @@ function setConn(ok) {
 function wsConnect() {
   const ws = new WebSocket(SURL.replace('https','wss') + '/realtime/v1/websocket?apikey=' + SKEY + '&vsn=1.0.0');
   ws.onopen = () => ws.send(JSON.stringify({ topic: 'realtime:public:notes', event: 'phx_join', payload: {}, ref: '1' }));
-  ws.onmessage = e => { const m = JSON.parse(e.data); if (['INSERT','UPDATE','DELETE'].includes(m.event)) boot(); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (['INSERT','UPDATE','DELETE'].includes(m.event)) boot();
+  };
   ws.onclose = () => setTimeout(wsConnect, 3000);
 }
 
@@ -245,7 +256,9 @@ function renderList() {
   const el   = document.getElementById('s-list');
   const list = inTrash ? trashList : notes;
   const q    = query.toLowerCase();
-  const show = list.filter(n => !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q));
+  const show = list.filter(n =>
+    !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q)
+  );
 
   if (!show.length) {
     el.innerHTML = '<div class="empty-msg">' + (inTrash ? 'ゴミ箱は空です' : 'メモなし') + '</div>';
@@ -258,7 +271,7 @@ function renderList() {
     div.className = 'nitem' + (n.id === currentId ? ' sel' : '') + (inTrash ? ' trashed' : '');
     div.innerHTML =
       '<div class="nt">' + esc(n.title || '無題のメモ') + '</div>' +
-      '<div class="np">' + esc((n.content || '').slice(0, 65)) + '</div>' +
+      '<div class="np">' + esc((n.content || '').replace(/[#*`>-]/g,'').slice(0, 65)) + '</div>' +
       '<div class="nd">' + (inTrash ? '削除: ' + rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
     div.addEventListener('click', () => openNote(n.id));
     el.appendChild(div);
@@ -272,115 +285,39 @@ function openNote(id) {
   if (!note) return;
 
   currentId = id;
-  rawMap[id] = note.content || '';
 
   document.getElementById('m-empty').style.display  = 'none';
   document.getElementById('editor').style.display   = 'flex';
-  document.getElementById('e-title').value          = note.title || '';
+  document.getElementById('e-title').value          = note.title   || '';
+  document.getElementById('e-input').value          = note.content || '';
   document.getElementById('e-title').disabled       = inTrash;
+  document.getElementById('e-input').disabled       = inTrash;
   document.getElementById('btn-del').style.display  = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display  = inTrash ? '' : 'none';
+  document.getElementById('btn-preview').style.display = inTrash ? 'none' : '';
 
-  const ed = document.getElementById('e-editor');
-  ed.contentEditable = inTrash ? 'false' : 'true';
-  renderEditor(rawMap[id]);
-
+  updatePreview();
   setStatus('');
   renderList();
   document.getElementById('sidebar').classList.remove('open');
 }
 
-/* ── WYSIWYG render ──
-   行ごとに処理。カーソルがある行はraw表示、それ以外はmarkdownレンダリング */
-function renderEditor(md) {
-  const ed = document.getElementById('e-editor');
-  // カーソル行インデックスを取得
-  const focusLine = getFocusLineIndex();
-  const lines = md.split('\n');
-
-  // ブロック単位でパース（連続した行をまとめて処理）
-  // シンプルな実装: 全体をmarkedでレンダリングしつつ、カーソル行だけraw表示
-  if (document.activeElement !== ed) {
-    // フォーカスなし → 全体レンダリング
-    ed.innerHTML = marked.parse(md || '');
-    return;
-  }
-
-  // フォーカスあり → 全体をレンダリングした上でカーソル行をraw挿入
-  ed.innerHTML = marked.parse(md || '');
-  // カーソル位置を末尾に設定（シンプル保持）
-  placeCaretAtEnd(ed);
+/* ── Preview toggle ── */
+function togglePreview() {
+  showPreview = !showPreview;
+  document.getElementById('btn-preview').className = showPreview ? 'ebtn active' : 'ebtn';
+  document.getElementById('e-preview').style.display = showPreview ? 'block' : 'none';
+  updatePreview();
 }
 
-function getFocusLineIndex() {
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return -1;
-  // 省略: シンプル実装のため常に末尾扱い
-  return -1;
+function updatePreview() {
+  if (!showPreview) return;
+  const val = document.getElementById('e-input').value;
+  document.getElementById('e-preview').innerHTML = marked.parse(val || '');
 }
 
-function placeCaretAtEnd(el) {
-  const range = document.createRange();
-  const sel   = window.getSelection();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-/* ── Input handling ──
-   contenteditable の入力をrawMapに反映し、マークダウンをレンダリング */
-let isComposing = false;
-const ed = document.getElementById('e-editor');
-
-ed.addEventListener('compositionstart', () => { isComposing = true; });
-ed.addEventListener('compositionend',   () => { isComposing = false; syncRaw(); });
-
-ed.addEventListener('input', () => {
-  if (isComposing) return;
-  syncRaw();
-});
-
-ed.addEventListener('keydown', e => {
-  // Enterキー: 改行を正しく挿入
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    document.execCommand('insertHTML', false, '\n');
-    syncRaw();
-    return;
-  }
-});
-
-ed.addEventListener('blur', () => {
-  // フォーカスを外れたら全体レンダリング
-  if (!currentId) return;
-  const raw = rawMap[currentId] || '';
-  ed.innerHTML = marked.parse(raw || '');
-});
-
-ed.addEventListener('focus', () => {
-  // フォーカス時: raw テキストをplaintext表示
-  if (!currentId) return;
-  const raw = rawMap[currentId] || '';
-  ed.innerText = raw;
-  placeCaretAtEnd(ed);
-});
-
-function syncRaw() {
-  if (!currentId) return;
-  rawMap[currentId] = ed.innerText;
-  onContentEdit();
-}
-
-/* ── Save ── */
-function onTitleEdit() {
-  if (inTrash) return;
-  setStatus('…');
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(save, 900);
-}
-
-function onContentEdit() {
+/* ── Edit / Save ── */
+function onEdit() {
   if (inTrash) return;
   setStatus('…');
   clearTimeout(saveTimer);
@@ -390,7 +327,7 @@ function onContentEdit() {
 async function save() {
   if (!currentId || inTrash) return;
   const title   = document.getElementById('e-title').value;
-  const content = rawMap[currentId] || '';
+  const content = document.getElementById('e-input').value;
   try {
     await api('PATCH', 'notes?id=eq.' + currentId, { title, content, updated_at: new Date().toISOString() });
     const i = notes.findIndex(n => n.id === currentId);
@@ -424,14 +361,22 @@ async function doDelete() {
   const note = notes.find(n => n.id === currentId);
   if (!note) return;
   try {
-    await api('POST', 'trash', { title: note.title, content: note.content, deleted_at: new Date().toISOString(), original_id: note.id });
+    await api('POST', 'trash', {
+      title: note.title || '',
+      content: note.content || '',
+      deleted_at: new Date().toISOString(),
+      original_id: note.id
+    });
     await api('DELETE', 'notes?id=eq.' + currentId);
     notes     = notes.filter(n => n.id !== currentId);
     currentId = null;
     document.getElementById('editor').style.display  = 'none';
     document.getElementById('m-empty').style.display = 'flex';
     renderList();
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error('Delete error:', e);
+    setStatus('削除エラー', 'err');
+  }
 }
 
 /* ── Restore ── */
@@ -461,7 +406,9 @@ async function toggleTrash() {
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('editor').style.display  = 'none';
   document.getElementById('m-empty').style.display = 'flex';
-  if (inTrash) trashList = await api('GET', 'trash?order=deleted_at.desc&select=id,title,content,deleted_at,original_id') || [];
+  if (inTrash) {
+    trashList = await api('GET', 'trash?order=deleted_at.desc&select=id,title,content,deleted_at,original_id') || [];
+  }
   renderList();
 }
 
@@ -493,7 +440,9 @@ function setStatus(msg, cls) {
   el.className   = cls || '';
 }
 
-document.getElementById('dialog-bg').addEventListener('click', e => { if (e.target === document.getElementById('dialog-bg')) closeDialog(); });
+document.getElementById('dialog-bg').addEventListener('click', e => {
+  if (e.target === document.getElementById('dialog-bg')) closeDialog();
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
 
 boot();
