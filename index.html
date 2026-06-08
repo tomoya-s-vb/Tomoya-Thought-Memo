@@ -364,8 +364,7 @@ async function doDelete() {
     await api('POST', 'trash', {
       title: note.title || '',
       content: note.content || '',
-      deleted_at: new Date().toISOString(),
-      original_id: note.id
+      deleted_at: new Date().toISOString()
     });
     await api('DELETE', 'notes?id=eq.' + currentId);
     notes     = notes.filter(n => n.id !== currentId);
