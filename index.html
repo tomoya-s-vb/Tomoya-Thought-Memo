@@ -262,11 +262,14 @@ function renderList() {
   const filtered = list.filter(n => !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q));
   if (!filtered.length) { el.innerHTML = '<div class="empty-list">' + (viewMode==='trash'?'ゴミ箱は空です':'メモなし') + '</div>'; return; }
   el.innerHTML = filtered.map(n => `
-    <div class="note-item${n.id===currentId?' active':''} ${viewMode==='trash'?'trash-item':''}" onclick="selectNote('${n.id}')">
+    <div class="note-item${n.id===currentId?' active':''} ${viewMode==='trash'?'trash-item':''}" data-id="${n.id}">
       <div class="ni-title">${esc(n.title||'無題のメモ')}</div>
       <div class="ni-preview">${esc((n.content||'').slice(0,70))}</div>
       <div class="ni-date">${viewMode==='trash'?'削除: '+relTime(n.deleted_at):relTime(n.updated_at)}</div>
     </div>`).join('');
+  el.querySelectorAll('.note-item').forEach(item => {
+    item.addEventListener('click', () => selectNote(item.dataset.id));
+  });
 }
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
