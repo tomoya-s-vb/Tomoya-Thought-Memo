@@ -68,11 +68,18 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #s-conn.err { color: var(--red); background: var(--redbg); border-color: var(--redbg); }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
-#theme-label { padding: 4px 14px; font-family:var(--mono); font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; }
+#theme-label-row { padding: 4px 10px 4px 14px; display:flex; align-items:center; justify-content:space-between; gap:6px; }
+#theme-label { font-family:var(--mono); font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; }
+#tag-sort-btns { display:flex; gap:4px; }
+.tinybtn { padding:2px 7px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text3); font-family:var(--mono); font-size:10px; cursor:pointer; }
+.tinybtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+#sidebar-close-btn { display: none; }
 #theme-list { padding: 0 10px 12px; display:flex; flex-wrap:wrap; gap:5px; overflow-y:auto; }
 .theme-chip { font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border:1px solid var(--border); background: var(--bg); color: var(--text2); cursor:pointer; white-space:nowrap; transition:.15s; }
 .theme-chip:hover { background: var(--soft); }
 .theme-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
+.theme-chip.dragging { opacity: .35; }
+.theme-chip.drop-target { border-color: var(--green); }
 #s-foot { margin-top:auto; padding: 10px 12px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
 #s-foot span { font-size:10px; font-family:var(--mono); color:var(--text3); }
 #logout-btn { font-size:10px; font-family:var(--mono); color:var(--text3); background:none; border:none; cursor:pointer; text-decoration:underline; flex-shrink:0; }
@@ -185,10 +192,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .new-row { display: flex; align-items: center; gap: 8px; padding: 11px 18px; color: var(--text3); cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; }
 .new-row:hover { background: var(--soft); color: var(--text2); }
 
+/* Mobile top bar (hidden on desktop) */
+#mob-topbar { display: none; }
+
 /* Mobile */
 @media (max-width: 640px) {
   #sidebar { position: fixed; inset: 0; z-index: 10; width: 100% !important; transform: translateX(-100%); transition: transform .25s; }
   #sidebar.open { transform: translateX(0); }
+  #sidebar-close-btn { display: flex; }
+  #mob-topbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-title { font-size: 14px; font-weight: 500; }
   #e-preview { display: none !important; }
   #grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
   .card { height: 140px; }
@@ -218,13 +231,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 <div id="app">
 
-  <div id="sidebar" class="open">
+  <div id="sidebar">
     <div id="s-head">
       <span id="s-label">Memo</span>
       <div id="s-head-btns">
         <button class="hbtn" id="view-btn" title="表示切替" onclick="toggleView()">▦</button>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
         <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
+        <button class="hbtn" id="sidebar-close-btn" title="閉じる" onclick="closeSidebarMobile()">✕</button>
       </div>
     </div>
     <div id="s-search"><input id="search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
@@ -233,12 +247,22 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="sortbtn" id="sort-auto" onclick="setSortMode('auto')">🕒 更新順</button>
     </div>
     <div id="s-conn"><span class="dot"></span><span id="conn-label">接続確認中…</span></div>
-    <div id="theme-label">テーマで絞り込み</div>
+    <div id="theme-label-row">
+      <span id="theme-label">タグで絞り込み</span>
+      <div id="tag-sort-btns">
+        <button class="tinybtn" id="tag-sort-alpha" onclick="setTagSortMode('alpha')" title="abc順">abc</button>
+        <button class="tinybtn" id="tag-sort-manual" onclick="setTagSortMode('manual')" title="手動並び替え">↕</button>
+      </div>
+    </div>
     <div id="theme-list"></div>
     <div id="s-foot"><span>ホーム画面に追加で一発起動</span><button id="logout-btn" onclick="doLogout()">ログアウト</button></div>
   </div>
 
   <div id="main">
+    <div id="mob-topbar">
+      <button class="hbtn" onclick="openSidebarMobile()">☰</button>
+      <span id="mob-title">Memo</span>
+    </div>
     <div id="grid-wrap"><div id="grid"></div></div>
 
     <div id="editor" onclick="if(event.target.id==='editor') closeEditor()">
@@ -246,7 +270,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <div id="e-bar">
           <button id="e-back" onclick="closeEditor()">← 一覧</button>
           <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
-          <input id="e-theme" placeholder="テーマ (カンマ区切り)" oninput="onEdit()">
+          <input id="e-theme" placeholder="タグ (カンマ区切り)" oninput="onEdit()">
           <span id="e-status"></span>
           <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
           <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
@@ -384,21 +408,69 @@ function setSortMode(mode) {
 }
 setSortMode('manual');
 
-/* ── Theme filter ── */
+/* ── Tag filter (uses the "theme" data field) ── */
+let tagSortMode = localStorage.getItem('tagSortMode') || 'alpha';
+let tagOrder = JSON.parse(localStorage.getItem('tagOrder') || '[]');
+let tagDragId = null;
+
+function setTagSortMode(mode) {
+  tagSortMode = mode;
+  localStorage.setItem('tagSortMode', mode);
+  document.getElementById('tag-sort-alpha').className  = mode === 'alpha'  ? 'tinybtn active' : 'tinybtn';
+  document.getElementById('tag-sort-manual').className = mode === 'manual' ? 'tinybtn active' : 'tinybtn';
+  renderThemes();
+}
+
 function renderThemes() {
   const all = new Set();
   notes.forEach(n => (n.theme || []).forEach(t => all.add(t)));
   const el = document.getElementById('theme-list');
   el.innerHTML = '';
-  if (!all.size) { el.innerHTML = '<span style="font-size:11px;color:var(--text3);padding:2px 4px;">まだテーマがありません</span>'; return; }
-  [...all].sort().forEach(t => {
+  if (!all.size) { el.innerHTML = '<span style="font-size:11px;color:var(--text3);padding:2px 4px;">まだタグがありません</span>'; return; }
+
+  let ordered;
+  if (tagSortMode === 'alpha') {
+    ordered = [...all].sort();
+  } else {
+    // manual: stored order first, then any new tags not yet placed
+    ordered = tagOrder.filter(t => all.has(t)).concat([...all].filter(t => !tagOrder.includes(t)));
+    tagOrder = ordered;
+    localStorage.setItem('tagOrder', JSON.stringify(tagOrder));
+  }
+
+  ordered.forEach(t => {
     const chip = document.createElement('div');
     chip.className = 'theme-chip' + (activeTheme === t ? ' active' : '');
     chip.textContent = t;
-    chip.onclick = () => { activeTheme = activeTheme === t ? null : t; renderThemes(); renderGrid(); };
+    chip.onclick = () => {
+      activeTheme = activeTheme === t ? null : t;
+      renderThemes();
+      renderGrid();
+      closeSidebarMobile();
+    };
+    if (tagSortMode === 'manual') {
+      chip.draggable = true;
+      chip.addEventListener('dragstart', () => { tagDragId = t; chip.classList.add('dragging'); });
+      chip.addEventListener('dragend',   () => { chip.classList.remove('dragging'); document.querySelectorAll('.theme-chip.drop-target').forEach(c=>c.classList.remove('drop-target')); });
+      chip.addEventListener('dragover',  e => { e.preventDefault(); chip.classList.add('drop-target'); });
+      chip.addEventListener('dragleave', () => { chip.classList.remove('drop-target'); });
+      chip.addEventListener('drop', e => {
+        e.preventDefault(); chip.classList.remove('drop-target');
+        if (tagDragId && tagDragId !== t) {
+          const from = tagOrder.indexOf(tagDragId), to = tagOrder.indexOf(t);
+          if (from >= 0 && to >= 0) {
+            tagOrder.splice(to, 0, tagOrder.splice(from, 1)[0]);
+            localStorage.setItem('tagOrder', JSON.stringify(tagOrder));
+            renderThemes();
+          }
+        }
+        tagDragId = null;
+      });
+    }
     el.appendChild(chip);
   });
 }
+setTagSortMode(tagSortMode);
 
 /* ── View mode (card grid / list) ── */
 function toggleView() {
@@ -525,6 +597,11 @@ async function reorder(draggedId, targetId) {
   } catch(e) { console.error('reorder save error', e); }
 }
 
+/* ── Mobile sidebar toggle ── */
+function openSidebarMobile() { document.getElementById('sidebar').classList.add('open'); }
+function closeSidebarMobile() { document.getElementById('sidebar').classList.remove('open'); }
+function syncMobTitle() { document.getElementById('mob-title').textContent = document.getElementById('s-label').textContent; }
+
 /* ── Open note / editor ── */
 function openNote(id) {
   const list = inTrash ? trashList : notes;
@@ -545,12 +622,11 @@ function openNote(id) {
 
   updatePreview();
   setStatus('');
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebarMobile();
 }
 function closeEditor() {
   document.getElementById('editor').classList.remove('open');
   currentId = null;
-  document.getElementById('sidebar').classList.add('open');
 }
 
 function togglePreview() {
@@ -641,10 +717,12 @@ async function toggleTrash() {
   activeTheme = null;
   document.getElementById('search-input').value    = '';
   document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Memo';
+  syncMobTitle();
   document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
   closeEditor();
+  closeSidebarMobile();
   if (inTrash) {
     const { data, error } = await sb.from('trash').select('id,title,content,deleted_at,original_id').order('deleted_at', { ascending: false });
     if (!error) trashList = data || [];
