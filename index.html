@@ -125,7 +125,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #grid { padding: 18px; }
 .group-section + .group-section { margin-top: 6px; }
 .group-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 0 2px 10px; }
-.group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 14px; align-content: start; margin-bottom: 22px; }
+.group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-content: start; margin-bottom: 22px; }
 .group-list { margin-bottom: 10px; }
 .group-grid.group-empty { min-height: 56px; }
 .empty-hint { grid-column: 1/-1; border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; font-size: 12px; color: var(--text3); }
@@ -250,6 +250,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #mob-topbar { display: none; }
 #mob-search { display: none; }
 #mob-tags-row { display: none; }
+#mob-folder-row { display: none; }
 
 /* Mobile */
 @media (max-width: 640px) {
@@ -1352,8 +1353,8 @@ function updateDropTarget(x, y, sourceItem) {
     // edge of the item before the gap, and the leading edge of the item after it.
     const leadItem  = side === 'before' ? item : nextDragItem(item);
     const trailItem = side === 'before' ? prevDragItem(item) : item;
-    if (leadItem  && leadItem  !== sourceItem) leadItem.classList.add('drop-before');
-    if (trailItem && trailItem !== sourceItem) trailItem.classList.add('drop-after');
+    if (leadItem  && leadItem  !== sourceItem) leadItem.classList.add('drop-after');
+    if (trailItem && trailItem !== sourceItem) trailItem.classList.add('drop-before');
     return;
   }
 
