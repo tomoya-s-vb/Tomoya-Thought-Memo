@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Memo</title>
+<title>Tomoya Memo</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Memo">
+<meta name="apple-mobile-web-app-title" content="Tomoya Memo">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -110,6 +110,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
   padding: 13px 15px; height: 168px; display: flex; flex-direction: column;
   cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .1s; position: relative;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.07); border-color: var(--text3); }
 .card.trashed { opacity: .6; }
@@ -205,6 +206,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row {
   display: flex; align-items: center; gap: 12px; padding: 11px 18px;
   border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .row:hover { background: var(--soft); }
 .row.trashed { opacity: .6; }
@@ -238,7 +240,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #grid { padding: 12px; }
   .group-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .card { height: 140px; }
-  .row-title { width: 110px; }
+  .row-title { width: auto; flex: 1; }
+  .row-body { display: none; }
 
   /* Editor: full-screen instead of centered modal */
   #editor { background: none; padding: 0; align-items: stretch; }
@@ -256,7 +259,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 <div id="login-screen">
   <div id="login-box">
-    <h1>Memo</h1>
+    <h1>Tomoya Memo</h1>
     <p>ログインしてください</p>
     <input id="login-email" type="email" placeholder="メールアドレス" autocomplete="username">
     <input id="login-pass" type="password" placeholder="パスワード" autocomplete="current-password">
@@ -269,7 +272,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
   <div id="sidebar">
     <div id="s-head">
-      <span id="s-label">Memo</span>
+      <span id="s-label">Tomoya Memo</span>
       <div id="s-head-btns">
         <button class="hbtn" id="view-btn" title="表示切替" onclick="toggleView()">▦</button>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
@@ -298,7 +301,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="hbtn" id="mob-trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
       <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
       <button class="hbtn" id="mob-sort-btn" title="並び替えモード切替" onclick="cycleSortMode()">↕</button>
-      <span id="mob-title">Memo</span>
+      <span id="mob-title">Tomoya Memo</span>
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
     <div id="mob-search"><input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
@@ -355,6 +358,23 @@ const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
 /* ▲▲ ここまで ▲▲ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* Auto-linked URLs in the preview pane: plain click does nothing (so reading a
+   note never accidentally navigates you away from the app), Ctrl/Cmd+click
+   opens in a new tab. On mobile, a real <a> naturally gets Safari's native
+   long-press "Open / Share" menu — no extra code needed for that part. */
+{
+  const linkRenderer = new marked.Renderer();
+  const originalLink = linkRenderer.link.bind(linkRenderer);
+  linkRenderer.link = (href, title, text) => originalLink(href, title, text).replace('<a ', '<a target="_blank" rel="noopener noreferrer" ');
+  marked.use({ renderer: linkRenderer });
+}
+document.getElementById('e-preview').addEventListener('click', e => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener');
+});
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
@@ -1047,7 +1067,7 @@ async function toggleTrash() {
   activeTheme = null;
   document.getElementById('search-input').value    = '';
   document.getElementById('mob-search-input').value = '';
-  document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Memo';
+  document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Tomoya Memo';
   syncMobTitle();
   document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-new-btn').style.display = inTrash ? 'none' : 'flex';
@@ -1058,12 +1078,12 @@ async function toggleTrash() {
   document.getElementById('mob-search').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-tags-row').style.display = inTrash ? 'none' : '';
   closeEditor();
-  if (inTrash) {
-    const { data, error } = await sb.from('trash').select('id,title,content,deleted_at,original_id').order('deleted_at', { ascending: false });
-    if (!error) trashList = data || [];
-  }
   renderThemes();
   renderGrid();
+  if (inTrash) {
+    const { data, error } = await sb.from('trash').select('id,title,content,deleted_at,original_id').order('deleted_at', { ascending: false });
+    if (!error) { trashList = data || []; if (inTrash) renderGrid(); }
+  }
 }
 
 function onSearch(v) {
