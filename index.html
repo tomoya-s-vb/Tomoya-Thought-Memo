@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Memo</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -30,12 +30,20 @@
     --amber: #f2c14e; --amberbg: #2b230e;
   }
 }
-html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); }
-#app { display: none; height: 100vh; overflow: hidden; }
+html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); overscroll-behavior: none; }
+#app {
+  display: none; overflow: hidden;
+  height: 100vh; height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
 #app.show { display: flex; }
 
 /* Login screen */
-#login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+#login-screen {
+  height: 100vh; height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
 #login-screen.hide { display: none; }
 #login-box { width: 100%; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 26px; }
 #login-box h1 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
@@ -123,9 +131,19 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-back:hover { color: var(--text); }
 #e-title { flex: 1; min-width:140px; background: none; border: none; font-size: 16px; font-weight: 500; font-family: var(--sans); color: var(--text); outline: none; }
 #e-title::placeholder { color: var(--text3); font-weight: 300; }
-#e-theme { width: 170px; background: none; border: 1px solid var(--border); border-radius:6px; padding:5px 9px; font-size: 12px; font-family: var(--mono); color: var(--text2); outline:none; }
-#e-theme:focus { border-color: var(--text2); }
-#e-theme::placeholder { color: var(--text3); }
+#e-tags-row { padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
+#e-tags-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+#e-tags-chips:empty { margin-bottom: 0; }
+.tag-chip.removable { display: inline-flex; align-items: center; gap: 4px; }
+.tag-chip.removable button { background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; padding: 0; line-height: 1; }
+.tag-chip.removable button:hover { color: var(--red); }
+#e-tag-input-wrap { display: flex; }
+#e-tag-input { width: 100%; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 12px; font-family: var(--mono); color: var(--text2); outline: none; }
+#e-tag-input:focus { border-color: var(--text2); }
+#e-tag-input::placeholder { color: var(--text3); }
+#e-tag-suggest { display: none; position: absolute; left: 18px; right: 18px; top: 100%; margin-top: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.1); z-index: 10; overflow: hidden; }
+.tag-suggest-item { padding: 8px 12px; font-size: 12.5px; cursor: pointer; }
+.tag-suggest-item:hover { background: var(--soft); }
 #e-status { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
@@ -212,7 +230,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #editor-card { max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
-  #search-input, #e-title, #e-theme, #e-input, #login-email, #login-pass { font-size: 16px; }
+  #search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
 }
 </style>
 </head>
@@ -270,11 +288,17 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <div id="e-bar">
           <button id="e-back" onclick="closeEditor()">← 一覧</button>
           <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
-          <input id="e-theme" placeholder="タグ (カンマ区切り)" oninput="onEdit()">
           <span id="e-status"></span>
           <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
           <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
           <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
+        </div>
+        <div id="e-tags-row">
+          <div id="e-tags-chips"></div>
+          <div id="e-tag-input-wrap">
+            <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
+          </div>
+          <div id="e-tag-suggest"></div>
         </div>
         <div id="e-body">
           <textarea id="e-input"
@@ -364,9 +388,11 @@ async function boot() {
     if (error) throw error;
     notes = data || [];
     setConn(true);
+    await loadSettings();
     renderThemes();
     renderGrid();
     wireRealtime();
+    wireSettingsRealtime();
     if (new URLSearchParams(location.search).get('new') === '1' && !window.__autoNewDone) {
       window.__autoNewDone = true; newNote();
     }
@@ -399,26 +425,62 @@ async function refreshQuietly() {
   } catch(e) { setConn(false); }
 }
 
+/* ── Settings (sort preferences), stored per-account in Supabase so every
+   device shows the same state instead of a browser-local preference. ── */
+async function loadSettings() {
+  let { data } = await sb.from('user_settings').select('*').eq('user_id', uid).maybeSingle();
+  if (!data) {
+    const { data: created } = await sb.from('user_settings').insert({ user_id: uid }).select().single();
+    data = created;
+  }
+  applySettings(data, false);
+}
+
+function applySettings(row, persist) {
+  if (!row) return;
+  setSortMode(row.note_sort_mode || 'manual', false);
+  tagOrder = row.tag_order || [];
+  setTagSortMode(row.tag_sort_mode || 'alpha', false);
+}
+
+async function saveSettings(partial) {
+  if (!uid) return;
+  try { await sb.from('user_settings').update(partial).eq('user_id', uid); } catch(e) { console.error('settings save error', e); }
+}
+
+let settingsRealtimeWired = false;
+function wireSettingsRealtime() {
+  if (settingsRealtimeWired) return;
+  settingsRealtimeWired = true;
+  sb.channel('settings-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_settings' }, payload => {
+      applySettings(payload.new);
+      renderThemes();
+      renderGrid();
+    })
+    .subscribe();
+}
+
 /* ── Sort mode ── */
-function setSortMode(mode) {
+function setSortMode(mode, persist = true) {
   sortMode = mode;
   document.getElementById('sort-manual').className = mode === 'manual' ? 'sortbtn active' : 'sortbtn';
   document.getElementById('sort-auto').className    = mode === 'auto'   ? 'sortbtn active' : 'sortbtn';
   renderGrid();
+  if (persist) saveSettings({ note_sort_mode: mode });
 }
-setSortMode('manual');
 
 /* ── Tag filter (uses the "theme" data field) ── */
-let tagSortMode = localStorage.getItem('tagSortMode') || 'alpha';
-let tagOrder = JSON.parse(localStorage.getItem('tagOrder') || '[]');
+let tagSortMode = 'alpha';
+let tagOrder = [];
 let tagDragId = null;
 
-function setTagSortMode(mode) {
+function setTagSortMode(mode, persist = true) {
   tagSortMode = mode;
-  localStorage.setItem('tagSortMode', mode);
   document.getElementById('tag-sort-alpha').className  = mode === 'alpha'  ? 'tinybtn active' : 'tinybtn';
   document.getElementById('tag-sort-manual').className = mode === 'manual' ? 'tinybtn active' : 'tinybtn';
   renderThemes();
+  if (persist) saveSettings({ tag_sort_mode: mode });
 }
 
 function renderThemes() {
@@ -434,8 +496,10 @@ function renderThemes() {
   } else {
     // manual: stored order first, then any new tags not yet placed
     ordered = tagOrder.filter(t => all.has(t)).concat([...all].filter(t => !tagOrder.includes(t)));
-    tagOrder = ordered;
-    localStorage.setItem('tagOrder', JSON.stringify(tagOrder));
+    if (JSON.stringify(ordered) !== JSON.stringify(tagOrder)) {
+      tagOrder = ordered;
+      saveSettings({ tag_order: tagOrder });
+    }
   }
 
   ordered.forEach(t => {
@@ -460,7 +524,7 @@ function renderThemes() {
           const from = tagOrder.indexOf(tagDragId), to = tagOrder.indexOf(t);
           if (from >= 0 && to >= 0) {
             tagOrder.splice(to, 0, tagOrder.splice(from, 1)[0]);
-            localStorage.setItem('tagOrder', JSON.stringify(tagOrder));
+            saveSettings({ tag_order: tagOrder });
             renderThemes();
           }
         }
@@ -470,7 +534,6 @@ function renderThemes() {
     el.appendChild(chip);
   });
 }
-setTagSortMode(tagSortMode);
 
 /* ── View mode (card grid / list) ── */
 function toggleView() {
@@ -603,6 +666,8 @@ function closeSidebarMobile() { document.getElementById('sidebar').classList.rem
 function syncMobTitle() { document.getElementById('mob-title').textContent = document.getElementById('s-label').textContent; }
 
 /* ── Open note / editor ── */
+let currentTags = [];
+
 function openNote(id) {
   const list = inTrash ? trashList : notes;
   const note = list.find(n => n.id === id);
@@ -611,14 +676,19 @@ function openNote(id) {
   currentId = id;
   document.getElementById('editor').classList.add('open');
   document.getElementById('e-title').value = note.title || '';
-  document.getElementById('e-theme').value = (note.theme || []).join(', ');
   document.getElementById('e-input').value = note.content || '';
   document.getElementById('e-title').disabled = inTrash;
-  document.getElementById('e-theme').disabled = inTrash;
   document.getElementById('e-input').disabled = inTrash;
   document.getElementById('btn-del').style.display = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display = inTrash ? '' : 'none';
   document.getElementById('btn-preview').style.display = inTrash ? 'none' : '';
+
+  currentTags = [...(note.theme || [])];
+  document.getElementById('e-tag-input').value = '';
+  document.getElementById('e-tag-input').disabled = inTrash;
+  document.getElementById('e-tag-input-wrap').style.display = inTrash ? 'none' : 'flex';
+  document.getElementById('e-tag-suggest').style.display = 'none';
+  renderTagChips();
 
   updatePreview();
   setStatus('');
@@ -646,13 +716,89 @@ function onEdit() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 900);
 }
-function parseThemes(v) { return v.split(',').map(s => s.trim()).filter(Boolean); }
+
+/* ── Tag chips: pick from existing tags, or type a new one and press Enter ── */
+function renderTagChips() {
+  const el = document.getElementById('e-tags-chips');
+  el.innerHTML = '';
+  currentTags.forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip removable';
+    chip.textContent = t;
+    if (!inTrash) {
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '×';
+      rm.setAttribute('aria-label', 'タグを削除');
+      rm.onclick = () => removeTag(t);
+      chip.appendChild(rm);
+    }
+    el.appendChild(chip);
+  });
+}
+
+function addTag(t) {
+  t = t.trim();
+  if (!t || currentTags.includes(t)) return;
+  currentTags.push(t);
+  renderTagChips();
+  onEdit();
+}
+
+function removeTag(t) {
+  currentTags = currentTags.filter(x => x !== t);
+  renderTagChips();
+  onEdit();
+}
+
+function allKnownTags() {
+  const s = new Set();
+  notes.forEach(n => (n.theme || []).forEach(t => s.add(t)));
+  return [...s];
+}
+
+function onTagInput() {
+  const val = document.getElementById('e-tag-input').value.trim().toLowerCase();
+  const box = document.getElementById('e-tag-suggest');
+  box.innerHTML = '';
+  if (!val) { box.style.display = 'none'; return; }
+  const matches = allKnownTags().filter(t => !currentTags.includes(t) && t.toLowerCase().includes(val)).slice(0, 6);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  matches.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'tag-suggest-item';
+    item.textContent = t;
+    item.onclick = () => pickSuggestion(t);
+    box.appendChild(item);
+  });
+  box.style.display = 'block';
+}
+
+function pickSuggestion(t) {
+  addTag(t);
+  const input = document.getElementById('e-tag-input');
+  input.value = '';
+  document.getElementById('e-tag-suggest').style.display = 'none';
+  input.focus();
+}
+
+function onTagKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const input = document.getElementById('e-tag-input');
+    addTag(input.value);
+    input.value = '';
+    document.getElementById('e-tag-suggest').style.display = 'none';
+  } else if (e.key === 'Escape') {
+    document.getElementById('e-tag-suggest').style.display = 'none';
+  }
+}
 
 async function save() {
   if (!currentId || inTrash) return;
   const title   = document.getElementById('e-title').value;
   const content = document.getElementById('e-input').value;
-  const theme   = parseThemes(document.getElementById('e-theme').value);
+  const theme   = currentTags;
   try {
     const { error } = await sb.from('notes').update({ title, content, theme, updated_at: new Date().toISOString() }).eq('id', currentId);
     if (error) throw error;
