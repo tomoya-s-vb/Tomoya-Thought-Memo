@@ -81,7 +81,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #tag-sort-btns { display:flex; gap:4px; }
 .tinybtn { padding:2px 7px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text3); font-family:var(--mono); font-size:10px; cursor:pointer; }
 .tinybtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
-#sidebar-close-btn { display: none; }
 #theme-list { padding: 0 10px 12px; display:flex; flex-wrap:wrap; gap:5px; overflow-y:auto; }
 .theme-chip { font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border:1px solid var(--border); background: var(--bg); color: var(--text2); cursor:pointer; white-space:nowrap; transition:.15s; }
 .theme-chip:hover { background: var(--soft); }
@@ -115,9 +114,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.07); border-color: var(--text3); }
 .card.trashed { opacity: .6; }
 .card.dragging { opacity: .35; transform: scale(.97); }
-.card.drop-target { border-color: var(--green); }
-.card-drag-handle { position:absolute; top:8px; right:32px; font-size:11px; color:var(--text3); cursor:grab; opacity:0; transition:.15s; }
-.card:hover .card-drag-handle { opacity: 1; }
+.card.drag-enabled { cursor: grab; touch-action: pan-y; }
+.card.drop-before { box-shadow: -3px 0 0 var(--green) inset; }
+.card.drop-after  { box-shadow:  3px 0 0 var(--green) inset; }
 .card-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:40px; margin-bottom: 6px; }
 .card-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.65; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; word-break: break-word; }
 .card-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; margin-top: 8px; }
@@ -210,23 +209,31 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row:hover { background: var(--soft); }
 .row.trashed { opacity: .6; }
 .row.dragging { opacity: .35; }
-.row.drop-target { border-top: 2px solid var(--green); }
-.row-drag-handle { font-size: 12px; color: var(--text3); cursor: grab; flex-shrink: 0; }
+.row.drag-enabled { touch-action: pan-y; }
+.row.drop-before { box-shadow: 0 -3px 0 var(--green) inset; }
+.row.drop-after  { box-shadow: 0  3px 0 var(--green) inset; }
 .row-title { font-size: 13.5px; font-weight: 500; flex-shrink: 0; width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-body { flex: 1; font-size: 12.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-tags { display: flex; gap: 4px; flex-shrink: 0; }
 .row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; width: 60px; text-align: right; }
 
-/* Mobile top bar (hidden on desktop) */
+/* Mobile top bar / search / tags (hidden on desktop) */
 #mob-topbar { display: none; }
+#mob-search { display: none; }
+#mob-tags-row { display: none; }
 
 /* Mobile */
 @media (max-width: 640px) {
-  #sidebar { position: fixed; inset: 0; z-index: 10; width: 100% !important; transform: translateX(-100%); transition: transform .25s; }
-  #sidebar.open { transform: translateX(0); }
-  #sidebar-close-btn { display: flex; }
-  #mob-topbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #mob-title { font-size: 14px; font-weight: 500; flex: 1; }
+  #sidebar { display: none; }
+  #mob-topbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-title { font-size: 14px; font-weight: 500; flex: 1; text-align: center; }
+  #mob-search { display: block; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-search input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; }
+  #mob-search input::placeholder { color: var(--text3); }
+  #mob-tags-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-tags-row .tinybtn { flex-shrink: 0; }
+  #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
+  #mob-theme-list .theme-chip { flex-shrink: 0; }
   #e-preview { display: none !important; }
   #grid { padding: 12px; }
   .group-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -241,7 +248,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
-  #search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
+  #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
 }
 </style>
 </head>
@@ -267,7 +274,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button class="hbtn" id="view-btn" title="表示切替" onclick="toggleView()">▦</button>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
         <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
-        <button class="hbtn" id="sidebar-close-btn" title="閉じる" onclick="closeSidebarMobile()">✕</button>
       </div>
     </div>
     <div id="s-search"><input id="search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
@@ -289,9 +295,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
   <div id="main">
     <div id="mob-topbar">
-      <button class="hbtn" onclick="openSidebarMobile()">☰</button>
+      <button class="hbtn" id="mob-trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
+      <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
+      <button class="hbtn" id="mob-sort-btn" title="並び替えモード切替" onclick="cycleSortMode()">↕</button>
       <span id="mob-title">Memo</span>
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
+    </div>
+    <div id="mob-search"><input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
+    <div id="mob-tags-row">
+      <button class="tinybtn" id="mob-tag-sort-btn" title="タグの並び替えモード切替" onclick="cycleTagSortMode()">abc</button>
+      <div id="mob-theme-list"></div>
     </div>
     <div id="grid-wrap"><div id="grid"></div></div>
 
@@ -344,7 +357,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
-let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragId = null, dragMoved = false;
+let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
 let uid = null, viewMode = 'grid';
 
 /* ── Auth ──
@@ -434,7 +447,24 @@ async function refreshQuietly() {
     setConn(true);
     renderThemes();
     if (!inTrash) renderGrid();
+    refreshOpenEditorIfIdle();
   } catch(e) { setConn(false); }
+}
+
+/* If the note currently open in the editor changed on another device, pull the
+   new content in live — but only when this device has no unsaved local edits
+   and isn't actively focused in one of the fields, so we never clobber typing. */
+function refreshOpenEditorIfIdle() {
+  if (!currentId || inTrash || saveTimer) return;
+  const active = document.activeElement;
+  if (['e-title', 'e-input', 'e-tag-input'].includes(active && active.id)) return;
+  const note = notes.find(n => n.id === currentId);
+  if (!note) return;
+  document.getElementById('e-title').value = note.title || '';
+  document.getElementById('e-input').value = note.content || '';
+  currentTags = [...(note.theme || [])];
+  renderTagChips();
+  updatePreview();
 }
 
 /* ── Settings (sort preferences), stored per-account in Supabase so every
@@ -478,9 +508,12 @@ function setSortMode(mode, persist = true) {
   sortMode = mode;
   document.getElementById('sort-manual').className = mode === 'manual' ? 'sortbtn active' : 'sortbtn';
   document.getElementById('sort-auto').className    = mode === 'auto'   ? 'sortbtn active' : 'sortbtn';
+  const mb = document.getElementById('mob-sort-btn');
+  if (mb) { mb.textContent = mode === 'manual' ? '↕' : '🕒'; mb.title = mode === 'manual' ? '手動並び替え中(タップで更新順に)' : '更新順で表示中(タップで手動並び替えに)'; }
   renderGrid();
   if (persist) saveSettings({ note_sort_mode: mode });
 }
+function cycleSortMode() { setSortMode(sortMode === 'manual' ? 'auto' : 'manual'); }
 
 /* ── Tag filter (uses the "theme" data field) ── */
 let tagSortMode = 'alpha';
@@ -491,16 +524,17 @@ function setTagSortMode(mode, persist = true) {
   tagSortMode = mode;
   document.getElementById('tag-sort-alpha').className  = mode === 'alpha'  ? 'tinybtn active' : 'tinybtn';
   document.getElementById('tag-sort-manual').className = mode === 'manual' ? 'tinybtn active' : 'tinybtn';
+  const mb = document.getElementById('mob-tag-sort-btn');
+  if (mb) { mb.textContent = mode === 'alpha' ? 'abc' : '↕'; mb.className = 'tinybtn' + (mode === 'manual' ? ' active' : ''); }
   renderThemes();
   if (persist) saveSettings({ tag_sort_mode: mode });
 }
+function cycleTagSortMode() { setTagSortMode(tagSortMode === 'alpha' ? 'manual' : 'alpha'); }
 
 function renderThemes() {
   const all = new Set();
   notes.forEach(n => (n.theme || []).forEach(t => all.add(t)));
-  const el = document.getElementById('theme-list');
-  el.innerHTML = '';
-  if (!all.size) { el.innerHTML = '<span style="font-size:11px;color:var(--text3);padding:2px 4px;">まだタグがありません</span>'; return; }
+  const containers = [document.getElementById('theme-list'), document.getElementById('mob-theme-list')];
 
   let ordered;
   if (tagSortMode === 'alpha') {
@@ -514,44 +548,54 @@ function renderThemes() {
     }
   }
 
-  ordered.forEach(t => {
-    const chip = document.createElement('div');
-    chip.className = 'theme-chip' + (activeTheme === t ? ' active' : '');
-    chip.textContent = t;
-    chip.onclick = () => {
-      activeTheme = activeTheme === t ? null : t;
-      renderThemes();
-      renderGrid();
-      closeSidebarMobile();
-    };
-    if (tagSortMode === 'manual') {
-      chip.draggable = true;
-      chip.addEventListener('dragstart', () => { tagDragId = t; chip.classList.add('dragging'); });
-      chip.addEventListener('dragend',   () => { chip.classList.remove('dragging'); document.querySelectorAll('.theme-chip.drop-target').forEach(c=>c.classList.remove('drop-target')); });
-      chip.addEventListener('dragover',  e => { e.preventDefault(); chip.classList.add('drop-target'); });
-      chip.addEventListener('dragleave', () => { chip.classList.remove('drop-target'); });
-      chip.addEventListener('drop', e => {
-        e.preventDefault(); chip.classList.remove('drop-target');
-        if (tagDragId && tagDragId !== t) {
-          const from = tagOrder.indexOf(tagDragId), to = tagOrder.indexOf(t);
-          if (from >= 0 && to >= 0) {
-            tagOrder.splice(to, 0, tagOrder.splice(from, 1)[0]);
-            saveSettings({ tag_order: tagOrder });
-            renderThemes();
-          }
-        }
-        tagDragId = null;
-      });
-    }
-    el.appendChild(chip);
+  containers.forEach(el => {
+    if (!el) return;
+    el.innerHTML = '';
+    if (!all.size) { el.innerHTML = '<span style="font-size:11px;color:var(--text3);padding:2px 4px;">まだタグがありません</span>'; return; }
+    ordered.forEach(t => el.appendChild(buildTagChip(t)));
   });
+}
+
+function buildTagChip(t) {
+  const chip = document.createElement('div');
+  chip.className = 'theme-chip' + (activeTheme === t ? ' active' : '');
+  chip.textContent = t;
+  chip.onclick = () => {
+    activeTheme = activeTheme === t ? null : t;
+    renderThemes();
+    renderGrid();
+  };
+  if (tagSortMode === 'manual') {
+    chip.draggable = true;
+    chip.addEventListener('dragstart', () => { tagDragId = t; chip.classList.add('dragging'); });
+    chip.addEventListener('dragend',   () => { chip.classList.remove('dragging'); document.querySelectorAll('.theme-chip.drop-target').forEach(c=>c.classList.remove('drop-target')); });
+    chip.addEventListener('dragover',  e => { e.preventDefault(); chip.classList.add('drop-target'); });
+    chip.addEventListener('dragleave', () => { chip.classList.remove('drop-target'); });
+    chip.addEventListener('drop', e => {
+      e.preventDefault(); chip.classList.remove('drop-target');
+      if (tagDragId && tagDragId !== t) {
+        const from = tagOrder.indexOf(tagDragId), to = tagOrder.indexOf(t);
+        if (from >= 0 && to >= 0) {
+          tagOrder.splice(to, 0, tagOrder.splice(from, 1)[0]);
+          saveSettings({ tag_order: tagOrder });
+          renderThemes();
+        }
+      }
+      tagDragId = null;
+    });
+  }
+  return chip;
 }
 
 /* ── View mode (card grid / list) ── */
 function toggleView() {
   viewMode = viewMode === 'grid' ? 'list' : 'grid';
-  document.getElementById('view-btn').textContent = viewMode === 'grid' ? '▦' : '☰';
-  document.getElementById('view-btn').title = viewMode === 'grid' ? 'リスト表示に切替' : 'カード表示に切替';
+  const icon = viewMode === 'grid' ? '▦' : '☰';
+  const title = viewMode === 'grid' ? 'リスト表示に切替' : 'カード表示に切替';
+  document.getElementById('view-btn').textContent = icon;
+  document.getElementById('view-btn').title = title;
+  const mb = document.getElementById('mob-view-btn');
+  if (mb) { mb.textContent = icon; mb.title = title; }
   renderGrid();
 }
 
@@ -613,20 +657,12 @@ function buildGroup(label, items, isPinnedGroup) {
 
   const wrap = document.createElement('div');
   wrap.className = viewMode === 'list' ? 'group-list' : 'group-grid';
+  wrap.dataset.pinnedGroup = isPinnedGroup ? '1' : '0';
   if (!items.length && isPinnedGroup) {
     wrap.classList.add('group-empty');
     wrap.innerHTML = '<div class="empty-hint">メモをここへドラッグするとピン留めされます</div>';
   }
   fillItems(wrap, items, isPinnedGroup);
-
-  // Drop on empty space within the group (not on a specific item) appends to the end
-  wrap.addEventListener('dragover', e => { if (sortMode === 'manual') e.preventDefault(); });
-  wrap.addEventListener('drop', e => {
-    if (sortMode !== 'manual' || !dragId) return;
-    e.preventDefault();
-    reorder(dragId, null, isPinnedGroup);
-    dragId = null;
-  });
 
   section.appendChild(wrap);
   return section;
@@ -646,7 +682,6 @@ function buildCard(n) {
   card.dataset.id = n.id;
   const tagsHtml = (n.theme||[]).slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   card.innerHTML =
-    (!inTrash && sortMode==='manual' ? '<div class="card-drag-handle">⠿</div>' : '') +
     (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
     '<div class="card-title">' + esc(n.title || '無題のメモ') + '</div>' +
     '<div class="card-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
@@ -665,7 +700,6 @@ function buildRow(n) {
   row.dataset.id = n.id;
   const tagsHtml = (n.theme||[]).slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   row.innerHTML =
-    (!inTrash && sortMode==='manual' ? '<span class="row-drag-handle">⠿</span>' : '') +
     (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
     '<div class="row-title">' + esc(n.title || '無題のメモ') + '</div>' +
     '<div class="row-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
@@ -687,23 +721,105 @@ async function togglePin(id) {
   catch(e) { console.error('pin toggle error', e); }
 }
 
+/* ── Drag to reorder (mouse: press+move; touch: long-press+move) ──
+   Native HTML5 drag-and-drop doesn't work reliably for touch on iOS Safari
+   (a press-and-hold there is captured as text selection instead), so this
+   builds its own drag using Pointer Events, which covers mouse and touch
+   with one code path and lets us show a clear before/after insertion line. */
+let ptrDrag = null; // { id, sourceItem }
+
 function wireDrag(item, n, groupPinned) {
   if (inTrash || sortMode !== 'manual') return;
-  item.draggable = true;
-  item.addEventListener('dragstart', () => { dragId = n.id; item.classList.add('dragging'); });
-  item.addEventListener('dragend',   () => { item.classList.remove('dragging'); document.querySelectorAll('.drop-target').forEach(c=>c.classList.remove('drop-target')); });
-  item.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); item.classList.add('drop-target'); });
-  item.addEventListener('dragleave', () => { item.classList.remove('drop-target'); });
-  item.addEventListener('drop', e => {
-    e.preventDefault(); e.stopPropagation();
-    item.classList.remove('drop-target');
-    if (dragId && dragId !== n.id) reorder(dragId, n.id, groupPinned);
-    dragId = null;
+  item.classList.add('drag-enabled');
+  item.addEventListener('pointerdown', e => {
+    if (e.target.closest('.pin-btn')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    armDrag(e, item, n, groupPinned);
   });
 }
 
-async function reorder(draggedId, targetId, targetPinned) {
-  dragMoved = true;
+function armDrag(downEvent, item, n, groupPinned) {
+  const startX = downEvent.clientX, startY = downEvent.clientY;
+  const isTouch = downEvent.pointerType === 'touch';
+  let longPressTimer = null;
+  let armed = false;   // true once drag officially begins
+  let cancelled = false;
+
+  const beginDrag = () => {
+    if (cancelled || armed) return;
+    armed = true;
+    dragMoved = true;
+    ptrDrag = { id: n.id, sourceItem: item };
+    item.classList.add('dragging');
+    if (navigator.vibrate) navigator.vibrate(8);
+  };
+
+  const onMove = me => {
+    if (armed) {
+      if (me.cancelable) me.preventDefault();
+      updateDropTarget(me.clientX, me.clientY, item);
+      return;
+    }
+    if (!isTouch) {
+      // Mouse: start dragging as soon as it moves a few pixels — no long-press needed.
+      if (Math.abs(me.clientX - startX) > 4 || Math.abs(me.clientY - startY) > 4) beginDrag();
+    } else if (Math.abs(me.clientX - startX) > 8 || Math.abs(me.clientY - startY) > 8) {
+      // Touch: moved before the long-press fired — this is a scroll/tap, not a drag.
+      cancelled = true;
+      clearTimeout(longPressTimer);
+    }
+  };
+
+  const onUp = () => {
+    clearTimeout(longPressTimer);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    if (armed) finishDrag(groupPinned);
+  };
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+
+  if (isTouch) longPressTimer = setTimeout(beginDrag, 400);
+}
+
+function clearDropVisuals() {
+  document.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+}
+
+function updateDropTarget(x, y, sourceItem) {
+  clearDropVisuals();
+  const el = document.elementFromPoint(x, y);
+  const item = el && el.closest('.card,.row');
+
+  if (item && item !== sourceItem) {
+    const rect = item.getBoundingClientRect();
+    const horizontal = viewMode !== 'list';
+    const side = horizontal
+      ? ((x - rect.left) > rect.width / 2 ? 'after' : 'before')
+      : ((y - rect.top)  > rect.height / 2 ? 'after' : 'before');
+    item.classList.add(side === 'after' ? 'drop-after' : 'drop-before');
+    ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-grid,.group-list').dataset.pinnedGroup === '1' };
+    return;
+  }
+
+  // Not over an item — check whether we're over a group's empty space (append to end)
+  const group = el && el.closest('.group-grid,.group-list');
+  ptrDrag.target = group ? { id: null, side: null, pinnedGroup: group.dataset.pinnedGroup === '1' } : null;
+}
+
+function finishDrag(sourceGroupPinned) {
+  clearDropVisuals();
+  ptrDrag.sourceItem.classList.remove('dragging');
+  const t = ptrDrag.target;
+  if (t) reorder(ptrDrag.id, t.id, t.pinnedGroup, t.side === 'after');
+  ptrDrag = null;
+  setTimeout(() => { dragMoved = false; }, 30); // swallow the synthetic click that follows a drag
+}
+
+async function reorder(draggedId, targetId, targetPinned, insertAfter) {
   const dragged = notes.find(n => n.id === draggedId);
   if (!dragged) return;
 
@@ -713,8 +829,10 @@ async function reorder(draggedId, targetId, targetPinned) {
   dragged.pinned = !!targetPinned;
 
   if (targetId) {
-    const to = group.findIndex(n => n.id === targetId);
-    group.splice(to < 0 ? group.length : to, 0, dragged);
+    let to = group.findIndex(n => n.id === targetId);
+    if (to < 0) to = group.length;
+    else if (insertAfter) to += 1;
+    group.splice(to, 0, dragged);
   } else {
     group.push(dragged); // dropped on empty space -> append to end
   }
@@ -928,14 +1046,18 @@ async function toggleTrash() {
   query     = '';
   activeTheme = null;
   document.getElementById('search-input').value    = '';
+  document.getElementById('mob-search-input').value = '';
   document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Memo';
   syncMobTitle();
   document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
+  document.getElementById('mob-trash-btn').className = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
+  document.getElementById('mob-sort-btn').style.display = inTrash ? 'none' : 'flex';
+  document.getElementById('mob-search').style.display = inTrash ? 'none' : '';
+  document.getElementById('mob-tags-row').style.display = inTrash ? 'none' : '';
   closeEditor();
-  closeSidebarMobile();
   if (inTrash) {
     const { data, error } = await sb.from('trash').select('id,title,content,deleted_at,original_id').order('deleted_at', { ascending: false });
     if (!error) trashList = data || [];
@@ -944,7 +1066,13 @@ async function toggleTrash() {
   renderGrid();
 }
 
-function onSearch(v) { query = v; renderGrid(); }
+function onSearch(v) {
+  query = v;
+  const d = document.getElementById('search-input'), m = document.getElementById('mob-search-input');
+  if (d && d.value !== v) d.value = v;
+  if (m && m.value !== v) m.value = v;
+  renderGrid();
+}
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function rel(iso) {
