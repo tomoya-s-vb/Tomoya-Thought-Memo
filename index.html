@@ -98,7 +98,13 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 /* Grid of cards */
 #grid-wrap { flex:1; overflow-y:auto; }
-#grid { padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 14px; align-content: start; }
+#grid { padding: 18px; }
+.group-section + .group-section { margin-top: 6px; }
+.group-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 0 2px 10px; }
+.group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 14px; align-content: start; margin-bottom: 22px; }
+.group-list { margin-bottom: 10px; }
+.group-grid.group-empty { min-height: 56px; }
+.empty-hint { grid-column: 1/-1; border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; font-size: 12px; color: var(--text3); }
 .empty-msg { padding: 40px 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); grid-column: 1/-1; }
 
 .card {
@@ -110,17 +116,20 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .card.trashed { opacity: .6; }
 .card.dragging { opacity: .35; transform: scale(.97); }
 .card.drop-target { border-color: var(--green); }
-.card-drag-handle { position:absolute; top:8px; right:9px; font-size:11px; color:var(--text3); cursor:grab; opacity:0; transition:.15s; }
+.card-drag-handle { position:absolute; top:8px; right:32px; font-size:11px; color:var(--text3); cursor:grab; opacity:0; transition:.15s; }
 .card:hover .card-drag-handle { opacity: 1; }
-.card-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:16px; margin-bottom: 6px; }
+.card-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:40px; margin-bottom: 6px; }
 .card-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.65; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; word-break: break-word; }
 .card-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; margin-top: 8px; }
 .card-tags { display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; max-height: 19px; }
 .tag-chip { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
 .card-date { font-size: 10px; font-family: var(--mono); color: var(--text3); white-space: nowrap; flex-shrink:0; }
 
-.new-card { border: 1px dashed var(--border); background: none; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 26px; font-weight: 300; }
-.new-card:hover { border-color: var(--text2); color: var(--text2); background: var(--soft); }
+.pin-btn { width: 20px; height: 20px; border: none; background: none; padding: 0; cursor: pointer; font-size: 12px; opacity: .25; filter: grayscale(1); transition: .15s; flex-shrink: 0; }
+.pin-btn:hover { opacity: .7; }
+.pin-btn.active { opacity: 1; filter: none; }
+.card .pin-btn { position: absolute; top: 8px; right: 9px; }
+.card:has(.pin-btn.active) { border-color: var(--amber); }
 
 /* Editor: centered modal on desktop */
 #editor { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
@@ -207,8 +216,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row-body { flex: 1; font-size: 12.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-tags { display: flex; gap: 4px; flex-shrink: 0; }
 .row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; width: 60px; text-align: right; }
-.new-row { display: flex; align-items: center; gap: 8px; padding: 11px 18px; color: var(--text3); cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; }
-.new-row:hover { background: var(--soft); color: var(--text2); }
 
 /* Mobile top bar (hidden on desktop) */
 #mob-topbar { display: none; }
@@ -219,15 +226,19 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #sidebar.open { transform: translateX(0); }
   #sidebar-close-btn { display: flex; }
   #mob-topbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #mob-title { font-size: 14px; font-weight: 500; }
+  #mob-title { font-size: 14px; font-weight: 500; flex: 1; }
   #e-preview { display: none !important; }
-  #grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
+  #grid { padding: 12px; }
+  .group-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .card { height: 140px; }
   .row-title { width: 110px; }
 
   /* Editor: full-screen instead of centered modal */
   #editor { background: none; padding: 0; align-items: stretch; }
-  #editor-card { max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0; }
+  #editor-card {
+    max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+  }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
   #search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
@@ -280,6 +291,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="mob-topbar">
       <button class="hbtn" onclick="openSidebarMobile()">☰</button>
       <span id="mob-title">Memo</span>
+      <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
     <div id="grid-wrap"><div id="grid"></div></div>
 
@@ -384,7 +396,7 @@ sb.auth.onAuthStateChange((event, session) => {
 /* ── Boot ── */
 async function boot() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned').order('updated_at', { ascending: false });
     if (error) throw error;
     notes = data || [];
     setConn(true);
@@ -416,7 +428,7 @@ function wireRealtime() {
 
 async function refreshQuietly() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned').order('updated_at', { ascending: false });
     if (error) throw error;
     notes = data || [];
     setConn(true);
@@ -544,119 +556,173 @@ function toggleView() {
 }
 
 /* ── Grid ── */
-function getSorted() {
+function getFiltered() {
   let list = inTrash ? trashList : notes.slice();
   const q = query.toLowerCase();
   list = list.filter(n =>
     (!q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q)) &&
     (!activeTheme || inTrash || (n.theme||[]).includes(activeTheme))
   );
-  if (!inTrash) {
-    if (sortMode === 'manual') list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    else list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
-  } else {
-    list.sort((a,b) => new Date(b.deleted_at) - new Date(a.deleted_at));
-  }
   return list;
+}
+
+function sortGroup(list) {
+  if (sortMode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
+}
+
+function getSorted() {
+  // Trash has no pinning — one flat list, newest deleted first.
+  if (inTrash) return getFiltered().sort((a,b) => new Date(b.deleted_at) - new Date(a.deleted_at));
+  return sortGroup(getFiltered());
 }
 
 function renderGrid() {
   const el = document.getElementById('grid');
   el.classList.toggle('list-mode', viewMode === 'list');
-  if (viewMode === 'list') renderRows(el); else renderCards(el);
+  el.innerHTML = '';
+
+  if (inTrash) {
+    const show = getSorted();
+    if (!show.length) { el.innerHTML = '<div class="empty-msg">ゴミ箱は空です</div>'; return; }
+    const wrap = document.createElement('div');
+    wrap.className = viewMode === 'list' ? '' : 'group-grid';
+    fillItems(wrap, show, false);
+    el.appendChild(wrap);
+    return;
+  }
+
+  const filtered = getFiltered();
+  const pinned   = sortGroup(filtered.filter(n => n.pinned));
+  const unpinned = sortGroup(filtered.filter(n => !n.pinned));
+
+  el.appendChild(buildGroup('📌 ピン留め', pinned, true));
+  el.appendChild(buildGroup(null, unpinned, false));
 }
 
-function wireDrag(item, n) {
+function buildGroup(label, items, isPinnedGroup) {
+  const section = document.createElement('div');
+  section.className = 'group-section';
+
+  if (label) {
+    const h = document.createElement('div');
+    h.className = 'group-label';
+    h.textContent = label;
+    section.appendChild(h);
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = viewMode === 'list' ? 'group-list' : 'group-grid';
+  if (!items.length && isPinnedGroup) {
+    wrap.classList.add('group-empty');
+    wrap.innerHTML = '<div class="empty-hint">メモをここへドラッグするとピン留めされます</div>';
+  }
+  fillItems(wrap, items, isPinnedGroup);
+
+  // Drop on empty space within the group (not on a specific item) appends to the end
+  wrap.addEventListener('dragover', e => { if (sortMode === 'manual') e.preventDefault(); });
+  wrap.addEventListener('drop', e => {
+    if (sortMode !== 'manual' || !dragId) return;
+    e.preventDefault();
+    reorder(dragId, null, isPinnedGroup);
+    dragId = null;
+  });
+
+  section.appendChild(wrap);
+  return section;
+}
+
+function fillItems(wrap, items, isPinnedGroup) {
+  items.forEach(n => {
+    const item = viewMode === 'list' ? buildRow(n) : buildCard(n);
+    wireDrag(item, n, isPinnedGroup);
+    wrap.appendChild(item);
+  });
+}
+
+function buildCard(n) {
+  const card = document.createElement('div');
+  card.className = 'card' + (inTrash ? ' trashed' : '');
+  card.dataset.id = n.id;
+  const tagsHtml = (n.theme||[]).slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
+  card.innerHTML =
+    (!inTrash && sortMode==='manual' ? '<div class="card-drag-handle">⠿</div>' : '') +
+    (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
+    '<div class="card-title">' + esc(n.title || '無題のメモ') + '</div>' +
+    '<div class="card-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
+    '<div class="card-footer"><div class="card-tags">' + tagsHtml + '</div>' +
+    '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
+  card.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
+  if (!inTrash) {
+    card.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+  }
+  return card;
+}
+
+function buildRow(n) {
+  const row = document.createElement('div');
+  row.className = 'row' + (inTrash ? ' trashed' : '');
+  row.dataset.id = n.id;
+  const tagsHtml = (n.theme||[]).slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
+  row.innerHTML =
+    (!inTrash && sortMode==='manual' ? '<span class="row-drag-handle">⠿</span>' : '') +
+    (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
+    '<div class="row-title">' + esc(n.title || '無題のメモ') + '</div>' +
+    '<div class="row-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
+    '<div class="row-tags">' + tagsHtml + '</div>' +
+    '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
+  row.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
+  if (!inTrash) {
+    row.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+  }
+  return row;
+}
+
+async function togglePin(id) {
+  const n = notes.find(x => x.id === id);
+  if (!n) return;
+  n.pinned = !n.pinned;
+  renderGrid();
+  try { await sb.from('notes').update({ pinned: n.pinned }).eq('id', id); }
+  catch(e) { console.error('pin toggle error', e); }
+}
+
+function wireDrag(item, n, groupPinned) {
   if (inTrash || sortMode !== 'manual') return;
   item.draggable = true;
   item.addEventListener('dragstart', () => { dragId = n.id; item.classList.add('dragging'); });
   item.addEventListener('dragend',   () => { item.classList.remove('dragging'); document.querySelectorAll('.drop-target').forEach(c=>c.classList.remove('drop-target')); });
-  item.addEventListener('dragover',  e => { e.preventDefault(); item.classList.add('drop-target'); });
+  item.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); item.classList.add('drop-target'); });
   item.addEventListener('dragleave', () => { item.classList.remove('drop-target'); });
   item.addEventListener('drop', e => {
-    e.preventDefault(); item.classList.remove('drop-target');
-    if (dragId && dragId !== n.id) reorder(dragId, n.id);
+    e.preventDefault(); e.stopPropagation();
+    item.classList.remove('drop-target');
+    if (dragId && dragId !== n.id) reorder(dragId, n.id, groupPinned);
     dragId = null;
   });
 }
 
-function renderCards(el) {
-  const show = getSorted();
-  el.innerHTML = '';
-
-  if (!inTrash) {
-    const nc = document.createElement('div');
-    nc.className = 'card new-card';
-    nc.textContent = '＋';
-    nc.onclick = newNote;
-    el.appendChild(nc);
-  }
-
-  if (!show.length && inTrash) { el.innerHTML += '<div class="empty-msg">ゴミ箱は空です</div>'; return; }
-  if (!show.length && !inTrash) return;
-
-  show.forEach(n => {
-    const card = document.createElement('div');
-    card.className = 'card' + (inTrash ? ' trashed' : '');
-    card.dataset.id = n.id;
-    const tagsHtml = (n.theme||[]).slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
-    card.innerHTML =
-      (!inTrash && sortMode==='manual' ? '<div class="card-drag-handle">⠿</div>' : '') +
-      '<div class="card-title">' + esc(n.title || '無題のメモ') + '</div>' +
-      '<div class="card-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
-      '<div class="card-footer"><div class="card-tags">' + tagsHtml + '</div>' +
-      '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
-    card.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
-    wireDrag(card, n);
-    el.appendChild(card);
-  });
-}
-
-function renderRows(el) {
-  const show = getSorted();
-  el.innerHTML = '';
-
-  if (!inTrash) {
-    const nr = document.createElement('div');
-    nr.className = 'new-row';
-    nr.textContent = '＋ 新規メモ';
-    nr.onclick = newNote;
-    el.appendChild(nr);
-  }
-
-  if (!show.length && inTrash) { el.innerHTML += '<div class="empty-msg">ゴミ箱は空です</div>'; return; }
-  if (!show.length && !inTrash) return;
-
-  show.forEach(n => {
-    const row = document.createElement('div');
-    row.className = 'row' + (inTrash ? ' trashed' : '');
-    row.dataset.id = n.id;
-    const tagsHtml = (n.theme||[]).slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
-    row.innerHTML =
-      (!inTrash && sortMode==='manual' ? '<span class="row-drag-handle">⠿</span>' : '') +
-      '<div class="row-title">' + esc(n.title || '無題のメモ') + '</div>' +
-      '<div class="row-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
-      '<div class="row-tags">' + tagsHtml + '</div>' +
-      '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
-    row.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
-    wireDrag(row, n);
-    el.appendChild(row);
-  });
-}
-
-async function reorder(draggedId, targetId) {
+async function reorder(draggedId, targetId, targetPinned) {
   dragMoved = true;
-  const list = getSorted().filter(() => !inTrash);
-  const from = list.findIndex(n => n.id === draggedId);
-  const to   = list.findIndex(n => n.id === targetId);
-  if (from < 0 || to < 0) return;
-  list.splice(to, 0, list.splice(from, 1)[0]);
-  list.forEach((n, i) => { n.sort_order = i; });
+  const dragged = notes.find(n => n.id === draggedId);
+  if (!dragged) return;
+
+  // Build the destination group's current order (excluding the dragged note itself)
+  const group = sortGroup(getFiltered().filter(n => !!n.pinned === !!targetPinned && n.id !== draggedId));
+
+  dragged.pinned = !!targetPinned;
+
+  if (targetId) {
+    const to = group.findIndex(n => n.id === targetId);
+    group.splice(to < 0 ? group.length : to, 0, dragged);
+  } else {
+    group.push(dragged); // dropped on empty space -> append to end
+  }
+
+  group.forEach((n, i) => { n.sort_order = i; });
   renderGrid();
   try {
-    await Promise.all(list.map(n => sb.from('notes').update({ sort_order: n.sort_order }).eq('id', n.id)));
-    const map = new Map(list.map(n => [n.id, n.sort_order]));
-    notes.forEach(n => { if (map.has(n.id)) n.sort_order = map.get(n.id); });
+    await Promise.all(group.map(n => sb.from('notes').update({ sort_order: n.sort_order, pinned: n.pinned }).eq('id', n.id)));
   } catch(e) { console.error('reorder save error', e); }
 }
 
@@ -865,6 +931,7 @@ async function toggleTrash() {
   document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Memo';
   syncMobTitle();
   document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
+  document.getElementById('mob-new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
   closeEditor();
