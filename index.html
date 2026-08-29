@@ -356,6 +356,22 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 </div>
 
 <script>
+/* ── Script map ──
+   Auth & boot ............. login, session, initial data load, realtime wiring
+   Offline drafts ........... localStorage-backed draft queue + sync/conflict logic
+   Settings ................. per-account sort preferences (synced via Supabase)
+   Tag filter ................ sidebar/mobile tag chips, filtering, manual order
+   Grid rendering ............ pinned/unpinned groups, card vs list layout
+   Drag to reorder ........... pointer-based drag (mouse + long-press touch)
+   Editor ..................... open/close, tag chips, save, offline-aware create
+   Trash ...................... delete/restore
+   Small helpers ............. esc/rel/setStatus etc
+
+   Note: the database column is called "theme" (kept from an earlier design),
+   but the UI presents it to the user as "tag" (タグ). Variable/function names
+   below mostly follow the DB column name — this comment is the only place
+   that mapping is spelled out. */
+
 /* ▼▼ ここを新しいプロジェクトのURL / anon keyに差し替えてください ▼▼ */
 const SUPABASE_URL = 'https://itvumfppblhirvbuynwt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
@@ -621,10 +637,10 @@ async function loadSettings() {
     const { data: created } = await sb.from('user_settings').insert({ user_id: uid }).select().single();
     data = created;
   }
-  applySettings(data, false);
+  applySettings(data);
 }
 
-function applySettings(row, persist) {
+function applySettings(row) {
   if (!row) return;
   setSortMode(row.note_sort_mode || 'manual', false);
   tagOrder = row.tag_order || [];
@@ -702,6 +718,11 @@ function renderThemes() {
   });
 }
 
+/* Tag chips still use the browser's native HTML5 drag-and-drop (desktop only)
+   for manual reordering — unlike note cards, which needed the custom pointer
+   system in "Drag to reorder" below to support touch. This is a simpler,
+   lower-stakes reorder (no server round trip, just a locally-stored order),
+   so it hasn't been worth rebuilding on the same touch-friendly system. */
 function buildTagChip(t) {
   const chip = document.createElement('div');
   chip.className = 'theme-chip' + (activeTheme === t ? ' active' : '');
@@ -817,56 +838,62 @@ function buildGroup(label, items, isPinnedGroup) {
 function fillItems(wrap, items, isPinnedGroup) {
   items.forEach(n => {
     const item = viewMode === 'list' ? buildRow(n) : buildCard(n);
-    wireDrag(item, n, isPinnedGroup);
+    wireDrag(item, n);
     wrap.appendChild(item);
   });
 }
 
-function buildCard(n) {
+/* What buildCard/buildRow actually differ on is the DOM layout; everything
+   about "which content to show" and "how items behave" is shared here. */
+function displayFieldsFor(n) {
   const pending = !inTrash ? loadPendingDraft(n.id) : null;
-  const title = pending ? pending.title : n.title;
-  const content = pending ? pending.content : n.content;
-  const theme = pending ? (pending.theme || []) : (n.theme || []);
+  return {
+    pending,
+    title: pending ? pending.title : n.title,
+    content: pending ? pending.content : n.content,
+    theme: pending ? (pending.theme || []) : (n.theme || [])
+  };
+}
+function tagsHtml(theme, max) {
+  return theme.slice(0, max).map(t => '<span class="tag-chip">' + esc(t) + '</span>').join('');
+}
+function pinButtonHtml(n) {
+  return inTrash ? '' : '<button type="button" class="pin-btn' + (n.pinned ? ' active' : '') + '" title="ピン留め切替">📌</button>';
+}
+function wireItemBehavior(item, n) {
+  item.addEventListener('click', () => { if (dragMoved) { dragMoved = false; return; } openNote(n.id); });
+  if (!inTrash) item.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+}
 
+function buildCard(n) {
+  const { pending, title, content, theme } = displayFieldsFor(n);
   const card = document.createElement('div');
   card.className = 'card' + (inTrash ? ' trashed' : '');
   card.dataset.id = n.id;
-  const tagsHtml = theme.slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   card.innerHTML =
-    (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
+    pinButtonHtml(n) +
     (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
     '<div class="card-title">' + esc(title || '無題のメモ') + '</div>' +
     '<div class="card-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="card-footer"><div class="card-tags">' + tagsHtml + '</div>' +
+    '<div class="card-footer"><div class="card-tags">' + tagsHtml(theme, 3) + '</div>' +
     '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
-  card.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
-  if (!inTrash) {
-    card.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
-  }
+  wireItemBehavior(card, n);
   return card;
 }
 
 function buildRow(n) {
-  const pending = !inTrash ? loadPendingDraft(n.id) : null;
-  const title = pending ? pending.title : n.title;
-  const content = pending ? pending.content : n.content;
-  const theme = pending ? (pending.theme || []) : (n.theme || []);
-
+  const { pending, title, content, theme } = displayFieldsFor(n);
   const row = document.createElement('div');
   row.className = 'row' + (inTrash ? ' trashed' : '');
   row.dataset.id = n.id;
-  const tagsHtml = theme.slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   row.innerHTML =
-    (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
+    pinButtonHtml(n) +
     (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
     '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
     '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="row-tags">' + tagsHtml + '</div>' +
+    '<div class="row-tags">' + tagsHtml(theme, 2) + '</div>' +
     '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
-  row.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
-  if (!inTrash) {
-    row.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
-  }
+  wireItemBehavior(row, n);
   return row;
 }
 
@@ -886,14 +913,14 @@ async function togglePin(id) {
    with one code path and lets us show a clear before/after insertion line. */
 let ptrDrag = null; // { id, sourceItem }
 
-function wireDrag(item, n, groupPinned) {
+function wireDrag(item, n) {
   if (inTrash || sortMode !== 'manual') return;
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
     if (e.target.closest('.pin-btn')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (e.pointerType !== 'touch') e.preventDefault(); // stops native text-select/drag-ghost on mouse
-    armDrag(e, item, n, groupPinned);
+    armDrag(e, item, n);
   });
 }
 
@@ -902,7 +929,7 @@ function lockScroll(lock) {
   el.style.overflowY = lock ? 'hidden' : '';
 }
 
-function armDrag(downEvent, item, n, groupPinned) {
+function armDrag(downEvent, item, n) {
   const startX = downEvent.clientX, startY = downEvent.clientY;
   const isTouch = downEvent.pointerType === 'touch';
   let longPressTimer = null;
@@ -941,7 +968,7 @@ function armDrag(downEvent, item, n, groupPinned) {
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
     lockScroll(false);
-    if (armed) finishDrag(groupPinned);
+    if (armed) finishDrag();
   };
 
   window.addEventListener('pointermove', onMove);
@@ -994,7 +1021,7 @@ function updateDropTarget(x, y, sourceItem) {
   ptrDrag.target = group ? { id: null, side: null, pinnedGroup: group.dataset.pinnedGroup === '1' } : null;
 }
 
-function finishDrag(sourceGroupPinned) {
+function finishDrag() {
   clearDropVisuals();
   ptrDrag.sourceItem.classList.remove('dragging');
   const t = ptrDrag.target;
@@ -1028,9 +1055,6 @@ async function reorder(draggedId, targetId, targetPinned, insertAfter) {
   } catch(e) { console.error('reorder save error', e); }
 }
 
-/* ── Mobile sidebar toggle ── */
-function openSidebarMobile() { document.getElementById('sidebar').classList.add('open'); }
-function closeSidebarMobile() { document.getElementById('sidebar').classList.remove('open'); }
 function syncMobTitle() { document.getElementById('mob-title').textContent = document.getElementById('s-label').textContent; }
 
 /* ── Open note / editor ── */
@@ -1064,7 +1088,6 @@ function openNote(id) {
 
   updatePreview();
   setStatus(pending ? '未送信の変更があります' : '');
-  closeSidebarMobile();
 }
 function closeEditor() {
   document.getElementById('editor').classList.remove('open');
