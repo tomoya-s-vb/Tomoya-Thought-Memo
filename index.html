@@ -130,6 +130,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .pin-btn.active { opacity: 1; filter: none; }
 .card .pin-btn { position: absolute; top: 8px; right: 9px; }
 .card:has(.pin-btn.active) { border-color: var(--amber); }
+.pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+.card .pending-dot { position: absolute; top: 12px; left: 12px; }
 
 /* Editor: centered modal on desktop */
 #editor { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
@@ -440,11 +442,19 @@ async function boot() {
     renderGrid();
     wireRealtime();
     wireSettingsRealtime();
+    flushPendingEdits();
     if (new URLSearchParams(location.search).get('new') === '1' && !window.__autoNewDone) {
       window.__autoNewDone = true; newNote();
     }
   } catch(e) { setConn(false); console.error(e); }
 }
+
+window.addEventListener('online',  () => { setConn(true); flushPendingEdits(); });
+window.addEventListener('offline', () => {
+  document.getElementById('s-conn').className = 'err';
+  document.getElementById('conn-label').textContent = 'オフライン';
+});
+setInterval(() => { if (uid) flushPendingEdits(); }, 20000); // safety net in case the 'online' event doesn't fire
 
 function setConn(ok) {
   const el = document.getElementById('s-conn');
@@ -473,11 +483,124 @@ async function refreshQuietly() {
   } catch(e) { setConn(false); }
 }
 
+/* ── Offline drafts ──
+   Every keystroke writes the current edit to localStorage immediately (not
+   debounced), independent of the network save. This is what survives
+   navigating back to the list — or even closing the tab — while offline; the
+   network save is just an attempt to sync it, and can fail without losing
+   the draft itself. A draft's `type` is 'create' for a note that doesn't
+   exist on the server yet (made offline) and 'update' otherwise. */
+const PENDING_PREFIX = 'pendingEdit:';
+function pendingKey(id) { return PENDING_PREFIX + id; }
+function savePendingDraft(id, draft) {
+  try { localStorage.setItem(pendingKey(id), JSON.stringify(draft)); } catch(e) {}
+}
+function loadPendingDraft(id) {
+  try { const raw = localStorage.getItem(pendingKey(id)); return raw ? JSON.parse(raw) : null; } catch(e) { return null; }
+}
+function clearPendingDraft(id) {
+  try { localStorage.removeItem(pendingKey(id)); } catch(e) {}
+}
+function hasPendingDraft(id) {
+  try { return localStorage.getItem(pendingKey(id)) !== null; } catch(e) { return false; }
+}
+/* Snapshot of what a local note needs for a future create/update, taken fresh
+   at the moment of writing the draft (not tracked in separate globals). */
+function draftFor(id, type, fields) {
+  const localNote = notes.find(n => n.id === id);
+  return {
+    type,
+    title: fields.title, content: fields.content, theme: fields.theme,
+    baseUpdatedAt: editBaseUpdatedAt,
+    sort_order: localNote ? localNote.sort_order : 0,
+    pinned: localNote ? !!localNote.pinned : false
+  };
+}
+
+/* Attempt to sync one note's fields to the server:
+   - isNew: insert it for the first time, using the id generated on-device.
+   - otherwise: check for a conflicting server-side change since baseUpdatedAt,
+     forking into a new note instead of overwriting if one is found.
+   Shared by both the interactive save and the background flush of drafts. */
+async function attemptSyncNote(id, fields, opts) {
+  if (opts.isNew) {
+    const { data, error } = await sb.from('notes').insert({
+      id, user_id: uid, title: fields.title, content: fields.content, theme: fields.theme,
+      pinned: !!opts.pinned, sort_order: opts.sort_order, updated_at: new Date().toISOString()
+    }).select().single();
+    if (error) throw error;
+    const i = notes.findIndex(n => n.id === id);
+    if (i >= 0) { delete notes[i].__pendingCreate; Object.assign(notes[i], data); }
+    else notes.unshift(data);
+    return { mode: 'created', updatedAt: data.updated_at };
+  }
+
+  const { data: current, error: checkErr } = await sb.from('notes').select('updated_at').eq('id', id).maybeSingle();
+  if (checkErr) throw checkErr;
+  if (!current) return { mode: 'deleted' }; // note no longer exists server-side — nothing to sync into
+
+  if (opts.baseUpdatedAt && current.updated_at !== opts.baseUpdatedAt) {
+    const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
+    const { data: copy, error: copyErr } = await sb.from('notes').insert({
+      user_id: uid,
+      title: (fields.title || '無題のメモ') + '(競合コピー)',
+      content: fields.content, theme: fields.theme,
+      sort_order: minOrder - 1, updated_at: new Date().toISOString()
+    }).select().single();
+    if (copyErr) throw copyErr;
+    notes.unshift(copy);
+    return { mode: 'fork', copy };
+  }
+
+  const { data: updated, error } = await sb.from('notes')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('updated_at')
+    .single();
+  if (error) throw error;
+  const updatedAt = updated.updated_at; // DB-returned value — matches what a later SELECT will read back
+  const i = notes.findIndex(n => n.id === id);
+  if (i >= 0) Object.assign(notes[i], { ...fields, updated_at: updatedAt });
+  return { mode: 'update', updatedAt };
+}
+
+async function flushPendingEdits() {
+  if (!navigator.onLine || !uid) return;
+  let keys;
+  try { keys = Object.keys(localStorage).filter(k => k.startsWith(PENDING_PREFIX)); } catch(e) { return; }
+  for (const key of keys) {
+    const id = key.slice(PENDING_PREFIX.length);
+    const draft = loadPendingDraft(id);
+    if (draft) await flushOneDraft(id, draft);
+  }
+}
+
+async function flushOneDraft(id, draft) {
+  try {
+    const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme }, {
+      isNew: draft.type === 'create',
+      baseUpdatedAt: draft.baseUpdatedAt,
+      sort_order: draft.sort_order,
+      pinned: draft.pinned
+    });
+    clearPendingDraft(id);
+    if (result.mode === 'fork' && currentId === id) {
+      currentId = result.copy.id;
+      editBaseUpdatedAt = result.copy.updated_at;
+      document.getElementById('e-title').value = result.copy.title;
+    } else if ((result.mode === 'update' || result.mode === 'created') && currentId === id) {
+      editBaseUpdatedAt = result.updatedAt;
+    }
+    renderThemes();
+    renderGrid();
+  } catch(e) { console.error('flush pending draft failed', e); } // still offline/unreachable — leave it queued
+}
+
 /* If the note currently open in the editor changed on another device, pull the
    new content in live — but only when this device has no unsaved local edits
    and isn't actively focused in one of the fields, so we never clobber typing. */
 function refreshOpenEditorIfIdle() {
-  if (!currentId || inTrash || saveTimer) return;
+  if (!currentId || inTrash || saveTimer || hasPendingDraft(currentId)) return;
   const active = document.activeElement;
   if (['e-title', 'e-input', 'e-tag-input'].includes(active && active.id)) return;
   const note = notes.find(n => n.id === currentId);
@@ -700,14 +823,20 @@ function fillItems(wrap, items, isPinnedGroup) {
 }
 
 function buildCard(n) {
+  const pending = !inTrash ? loadPendingDraft(n.id) : null;
+  const title = pending ? pending.title : n.title;
+  const content = pending ? pending.content : n.content;
+  const theme = pending ? (pending.theme || []) : (n.theme || []);
+
   const card = document.createElement('div');
   card.className = 'card' + (inTrash ? ' trashed' : '');
   card.dataset.id = n.id;
-  const tagsHtml = (n.theme||[]).slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
+  const tagsHtml = theme.slice(0,3).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   card.innerHTML =
     (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
-    '<div class="card-title">' + esc(n.title || '無題のメモ') + '</div>' +
-    '<div class="card-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
+    (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
+    '<div class="card-title">' + esc(title || '無題のメモ') + '</div>' +
+    '<div class="card-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
     '<div class="card-footer"><div class="card-tags">' + tagsHtml + '</div>' +
     '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
   card.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
@@ -718,14 +847,20 @@ function buildCard(n) {
 }
 
 function buildRow(n) {
+  const pending = !inTrash ? loadPendingDraft(n.id) : null;
+  const title = pending ? pending.title : n.title;
+  const content = pending ? pending.content : n.content;
+  const theme = pending ? (pending.theme || []) : (n.theme || []);
+
   const row = document.createElement('div');
   row.className = 'row' + (inTrash ? ' trashed' : '');
   row.dataset.id = n.id;
-  const tagsHtml = (n.theme||[]).slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
+  const tagsHtml = theme.slice(0,2).map(t => '<span class="tag-chip">'+esc(t)+'</span>').join('');
   row.innerHTML =
     (!inTrash ? '<button type="button" class="pin-btn' + (n.pinned?' active':'') + '" title="ピン留め切替">📌</button>' : '') +
-    '<div class="row-title">' + esc(n.title || '無題のメモ') + '</div>' +
-    '<div class="row-body">' + esc((n.content || '').replace(/[#*`>]/g,'')) + '</div>' +
+    (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
+    '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
+    '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
     '<div class="row-tags">' + tagsHtml + '</div>' +
     '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
   row.addEventListener('click', () => { if (dragMoved) { dragMoved=false; return; } openNote(n.id); });
@@ -907,18 +1042,20 @@ function openNote(id) {
   const note = list.find(n => n.id === id);
   if (!note) return;
 
+  const pending = !inTrash ? loadPendingDraft(id) : null;
+
   currentId = id;
-  editBaseUpdatedAt = note.updated_at;
+  editBaseUpdatedAt = pending ? pending.baseUpdatedAt : note.updated_at;
   document.getElementById('editor').classList.add('open');
-  document.getElementById('e-title').value = note.title || '';
-  document.getElementById('e-input').value = note.content || '';
+  document.getElementById('e-title').value = pending ? pending.title : (note.title || '');
+  document.getElementById('e-input').value = pending ? pending.content : (note.content || '');
   document.getElementById('e-title').disabled = inTrash;
   document.getElementById('e-input').disabled = inTrash;
   document.getElementById('btn-del').style.display = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display = inTrash ? '' : 'none';
   document.getElementById('btn-preview').style.display = inTrash ? 'none' : '';
 
-  currentTags = [...(note.theme || [])];
+  currentTags = pending ? [...(pending.theme || [])] : [...(note.theme || [])];
   document.getElementById('e-tag-input').value = '';
   document.getElementById('e-tag-input').disabled = inTrash;
   document.getElementById('e-tag-input-wrap').style.display = inTrash ? 'none' : 'flex';
@@ -926,7 +1063,7 @@ function openNote(id) {
   renderTagChips();
 
   updatePreview();
-  setStatus('');
+  setStatus(pending ? '未送信の変更があります' : '');
   closeSidebarMobile();
 }
 function closeEditor() {
@@ -947,8 +1084,15 @@ function updatePreview() {
 }
 
 function onEdit() {
-  if (inTrash) return;
+  if (inTrash || !currentId) return;
   setStatus('…');
+  const localNote = notes.find(n => n.id === currentId);
+  const type = (localNote && localNote.__pendingCreate) ? 'create' : 'update';
+  savePendingDraft(currentId, draftFor(currentId, type, {
+    title: document.getElementById('e-title').value,
+    content: document.getElementById('e-input').value,
+    theme: currentTags
+  }));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 900);
 }
@@ -1037,32 +1181,22 @@ async function save() {
   const content = document.getElementById('e-input').value;
   const theme   = currentTags;
   const savingId = currentId;
+  const localNote = notes.find(n => n.id === savingId);
+  const isNew = !!(localNote && localNote.__pendingCreate);
+  const baseUpdatedAt = editBaseUpdatedAt;
   try {
-    // Has this note changed on the server since we started editing it here?
-    // (Covers the offline case too: while offline this check itself fails
-    // and we fall into the catch block below without touching anything.)
-    const { data: current, error: checkErr } = await sb.from('notes').select('updated_at').eq('id', savingId).single();
-    if (checkErr) throw checkErr;
+    const result = await attemptSyncNote(savingId, { title, content, theme }, {
+      isNew, baseUpdatedAt,
+      sort_order: localNote ? localNote.sort_order : 0,
+      pinned: localNote ? !!localNote.pinned : false
+    });
+    clearPendingDraft(savingId); // successfully synced — the local draft is no longer needed
 
-    if (editBaseUpdatedAt && current.updated_at !== editBaseUpdatedAt) {
-      // Someone else changed it in the meantime — don't overwrite their edit.
-      // Save this device's version as a separate note instead; the original is left untouched.
-      const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
-      const { data: copy, error: copyErr } = await sb.from('notes').insert({
-        user_id: uid,
-        title: (title || '無題のメモ') + '(競合コピー)',
-        content, theme,
-        sort_order: minOrder - 1,
-        updated_at: new Date().toISOString()
-      }).select().single();
-      if (copyErr) throw copyErr;
-      notes.unshift(copy);
-      // If this note is still the one open, keep editing continue on the new copy
-      // rather than the now-stale original.
+    if (result.mode === 'fork') {
       if (currentId === savingId) {
-        currentId = copy.id;
-        editBaseUpdatedAt = copy.updated_at;
-        document.getElementById('e-title').value = copy.title;
+        currentId = result.copy.id;
+        editBaseUpdatedAt = result.copy.updated_at;
+        document.getElementById('e-title').value = result.copy.title;
       }
       renderThemes();
       renderGrid();
@@ -1071,28 +1205,46 @@ async function save() {
       return;
     }
 
-    const { error } = await sb.from('notes').update({ title, content, theme, updated_at: new Date().toISOString() }).eq('id', savingId);
-    if (error) throw error;
-    const i = notes.findIndex(n => n.id === savingId);
-    const newUpdatedAt = new Date().toISOString();
-    if (i >= 0) Object.assign(notes[i], { title, content, theme, updated_at: newUpdatedAt });
-    if (currentId === savingId) editBaseUpdatedAt = newUpdatedAt;
+    if ((result.mode === 'update' || result.mode === 'created') && currentId === savingId) editBaseUpdatedAt = result.updatedAt;
     renderThemes();
+    renderGrid();
     setStatus('保存済み ✓', 'ok');
     setTimeout(() => setStatus(''), 2500);
-  } catch(e) { setStatus('保存エラー', 'err'); }
+  } catch(e) {
+    // Offline or unreachable — the draft written in onEdit() stays in localStorage
+    // and flushPendingEdits() will retry once the connection comes back.
+    setStatus('オフライン・未送信', 'err');
+  }
 }
 
 async function newNote() {
+  const id = crypto.randomUUID();
+  const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
+  const localNote = {
+    id, user_id: uid, title: '', content: '', theme: [], pinned: false,
+    sort_order: minOrder - 1, updated_at: new Date().toISOString(),
+    __pendingCreate: true
+  };
+  notes.unshift(localNote);
+  renderGrid();
+  openNote(id);
+  document.getElementById('e-title').focus();
+
   try {
-    const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
-    const { data, error } = await sb.from('notes').insert({ user_id: uid, title: '', content: '', theme: [], sort_order: minOrder - 1, updated_at: new Date().toISOString() }).select().single();
+    const { data, error } = await sb.from('notes').insert({
+      id, user_id: uid, title: '', content: '', theme: [], pinned: false,
+      sort_order: localNote.sort_order, updated_at: localNote.updated_at
+    }).select().single();
     if (error) throw error;
-    notes.unshift(data);
+    const i = notes.findIndex(n => n.id === id);
+    if (i >= 0) { delete notes[i].__pendingCreate; Object.assign(notes[i], data); }
+    if (currentId === id) editBaseUpdatedAt = data.updated_at;
+    clearPendingDraft(id); // the row now exists — any draft written in the meantime becomes a normal 'update' on the next edit
+  } catch(e) {
+    // Offline — queue this as a pending creation; flushPendingEdits() inserts it once back online.
+    savePendingDraft(id, { type: 'create', title: '', content: '', theme: [], baseUpdatedAt: null, sort_order: localNote.sort_order, pinned: false });
     renderGrid();
-    openNote(data.id);
-    document.getElementById('e-title').focus();
-  } catch(e) { console.error(e); }
+  }
 }
 
 function askDelete() { document.getElementById('dialog-bg').className = 'show'; }
