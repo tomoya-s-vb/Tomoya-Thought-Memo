@@ -1,6 +1,6 @@
 {
-  "name": "Memo",
-  "short_name": "Memo",
+  "name": "Tomoya Memo",
+  "short_name": "Tomoya Memo",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f5f4f0",
