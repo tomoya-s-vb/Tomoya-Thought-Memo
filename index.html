@@ -299,6 +299,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
   <div id="main">
     <div id="mob-topbar">
+      <button class="hbtn" id="mob-refresh-btn" title="再読み込み" onclick="hardRefresh()">⟳</button>
       <button class="hbtn" id="mob-trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
       <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
       <button class="hbtn" id="mob-sort-btn" title="並び替えモード切替" onclick="cycleSortMode()">↕</button>
@@ -396,6 +397,13 @@ async function doLogout() {
   document.getElementById('app').classList.remove('show');
   document.getElementById('login-screen').classList.remove('hide');
 }
+
+/* Force a fresh fetch of index.html etc, bypassing any HTTP cache, so a just-
+   pushed deploy shows up immediately instead of a possibly-cached old copy. */
+function hardRefresh() {
+  location.href = location.pathname + '?_=' + Date.now();
+}
+
 function enterApp() {
   document.getElementById('login-screen').classList.add('hide');
   document.getElementById('app').classList.add('show');
@@ -811,6 +819,12 @@ function clearDropVisuals() {
   document.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
 }
 
+function nextDragItem(item) {
+  let sib = item.nextElementSibling;
+  while (sib && !(sib.classList.contains('card') || sib.classList.contains('row'))) sib = sib.nextElementSibling;
+  return sib;
+}
+
 function updateDropTarget(x, y, sourceItem) {
   clearDropVisuals();
   const el = document.elementFromPoint(x, y);
@@ -822,8 +836,19 @@ function updateDropTarget(x, y, sourceItem) {
     const side = horizontal
       ? ((x - rect.left) > rect.width / 2 ? 'after' : 'before')
       : ((y - rect.top)  > rect.height / 2 ? 'after' : 'before');
-    item.classList.add(side === 'after' ? 'drop-after' : 'drop-before');
     ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-grid,.group-list').dataset.pinnedGroup === '1' };
+
+    // Show the highlight on the leading edge of whichever item will land right
+    // after the new position — the same gap then always looks the same,
+    // whether you're hovering the trailing half of the previous card or the
+    // leading half of the next one.
+    if (side === 'before') {
+      item.classList.add('drop-before');
+    } else {
+      const next = nextDragItem(item);
+      if (next && next !== sourceItem) next.classList.add('drop-before');
+      else item.classList.add('drop-after'); // end of the list — nothing to lead into
+    }
     return;
   }
 
@@ -1002,6 +1027,7 @@ function onTagKeydown(e) {
 }
 
 async function save() {
+  saveTimer = null;
   if (!currentId || inTrash) return;
   const title   = document.getElementById('e-title').value;
   const content = document.getElementById('e-input').value;
