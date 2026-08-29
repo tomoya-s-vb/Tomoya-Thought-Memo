@@ -121,7 +121,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position:relative; }
 
 /* Grid of cards */
-#grid-wrap { flex:1; overflow-y:auto; }
+#grid-wrap { flex:1; overflow-y:auto; scrollbar-gutter: stable; }
 #grid { padding: 18px; }
 .group-section + .group-section { margin-top: 6px; }
 .group-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 0 2px 10px; }
@@ -264,8 +264,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-tags-row .tinybtn { flex-shrink: 0; }
   #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
   #mob-theme-list .theme-chip { flex-shrink: 0; }
-  #mob-folder-row { display: none; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #mob-folder-row.drag-active { display: block; }
+  #mob-folder-row { display: block; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   #mob-folder-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
   #mob-folder-list .folder-chip { flex-shrink: 0; font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); white-space: nowrap; }
   #mob-folder-list .folder-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
@@ -284,6 +283,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0;
     padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Toolbar: back+preview+delete pinned on row 1, title on its own row 2 —
+     this way "保存済み" appearing never pushes preview/delete out of place,
+     and delete sits away from the back button so it's harder to mis-tap. */
+  #e-bar { position: relative; }
+  #e-back { order: 1; }
+  #btn-preview { order: 2; margin-left: auto; }
+  #btn-del, #btn-res { order: 3; }
+  #e-title { order: 4; flex-basis: 100%; }
+  #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
   #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
@@ -347,7 +356,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="hbtn" id="mob-refresh-btn" title="再読み込み" onclick="hardRefresh()">⟳</button>
       <button class="hbtn" id="mob-trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
       <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
-      <button class="hbtn" id="mob-sort-btn" title="並び替えモード切替" onclick="cycleSortMode()">↕</button>
       <span id="mob-title">Tomoya Memo</span>
       <div class="export-menu-wrap">
         <button class="hbtn" title="エクスポート" onclick="toggleExportMenu('mob-export-menu')">⬇</button>
@@ -771,7 +779,12 @@ async function loadSettings() {
     const { data: created } = await sb.from('user_settings').insert({ user_id: uid }).select().single();
     data = created;
   }
-  applySettings(data);
+  // Note sort mode always starts at "updated order" on a fresh app open — it's
+  // the more predictable default. It's still synced live across devices
+  // during an active session (see wireSettingsRealtime/applySettings below).
+  tagOrder = data ? (data.tag_order || []) : [];
+  setTagSortMode(data ? (data.tag_sort_mode || 'alpha') : 'alpha', false);
+  setSortMode('auto', false);
 }
 
 function applySettings(row) {
@@ -804,12 +817,9 @@ function setSortMode(mode, persist = true) {
   sortMode = mode;
   document.getElementById('sort-manual').className = mode === 'manual' ? 'sortbtn active' : 'sortbtn';
   document.getElementById('sort-auto').className    = mode === 'auto'   ? 'sortbtn active' : 'sortbtn';
-  const mb = document.getElementById('mob-sort-btn');
-  if (mb) { mb.textContent = mode === 'manual' ? '↕' : '🕒'; mb.title = mode === 'manual' ? '手動並び替え中(タップで更新順に)' : '更新順で表示中(タップで手動並び替えに)'; }
   renderGrid();
   if (persist) saveSettings({ note_sort_mode: mode });
 }
-function cycleSortMode() { setSortMode(sortMode === 'manual' ? 'auto' : 'manual'); }
 
 /* ── Tag filter (uses the "theme" data field) ── */
 let tagSortMode = 'alpha';
@@ -1107,8 +1117,16 @@ function getFiltered() {
   return list;
 }
 
+/* Manual drag-reordering is a PC-only feature (mobile keeps things simple:
+   always sorted by update time). This checks the layout live, so it stays
+   correct even if a desktop session's "manual" preference has synced in. */
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 640px)').matches;
+}
+
 function sortGroup(list) {
-  if (sortMode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const mode = isMobileLayout() ? 'auto' : sortMode;
+  if (mode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   return list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
 }
 
@@ -1244,7 +1262,8 @@ async function togglePin(id) {
 let ptrDrag = null; // { id, sourceItem }
 
 function wireDrag(item, n) {
-  if (inTrash || sortMode !== 'manual') return;
+  if (inTrash) return;
+  if (!isMobileLayout() && sortMode !== 'manual') return; // desktop: reordering only in manual mode
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
     if (e.target.closest('.pin-btn')) return;
@@ -1273,7 +1292,6 @@ function armDrag(downEvent, item, n) {
     ptrDrag = { id: n.id, sourceItem: item };
     item.classList.add('dragging');
     lockScroll(true); // stop the list from scrolling under the finger while dragging
-    document.getElementById('mob-folder-row').classList.add('drag-active');
     if (navigator.vibrate) navigator.vibrate(8);
   };
 
@@ -1299,7 +1317,6 @@ function armDrag(downEvent, item, n) {
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
     lockScroll(false);
-    document.getElementById('mob-folder-row').classList.remove('drag-active');
     if (armed) finishDrag();
   };
 
@@ -1338,6 +1355,9 @@ function updateDropTarget(x, y, sourceItem) {
     ptrDrag.target = { folderId: folderEl.dataset.folderId || null };
     return;
   }
+
+  // Mobile has no manual reordering — dragging there is only for filing into a folder.
+  if (isMobileLayout()) { ptrDrag.target = null; return; }
 
   const item = el && el.closest('.card,.row');
 
@@ -1405,6 +1425,7 @@ let currentTags = [];
 let editBaseUpdatedAt = null;
 
 function openNote(id) {
+  flushPendingSave();
   const list = inTrash ? trashList : notes;
   const note = list.find(n => n.id === id);
   if (!note) return;
@@ -1433,6 +1454,7 @@ function openNote(id) {
   setStatus(pending ? '未送信の変更があります' : '');
 }
 function closeEditor() {
+  flushPendingSave();
   document.getElementById('editor').classList.remove('open');
   currentId = null;
 }
@@ -1537,6 +1559,21 @@ function onTagKeydown(e) {
     document.getElementById('e-tag-suggest').style.display = 'none';
   } else if (e.key === 'Escape') {
     document.getElementById('e-tag-suggest').style.display = 'none';
+  }
+}
+
+/* If there's a debounced save still pending for the note currently open,
+   run it right now instead of leaving it on a timer. Without this, switching
+   notes (or closing the editor) before the 900ms debounce fires means that
+   timer still goes off later — by then `currentId` may point at a different
+   note, or have been cleared, so the save either silently no-ops or (worse)
+   saves stale form content under the wrong note's id. Call this before
+   currentId changes, while it still refers to the note being left. */
+function flushPendingSave() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    save();
   }
 }
 
@@ -1664,7 +1701,6 @@ async function toggleTrash() {
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('mob-trash-btn').className = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
-  document.getElementById('mob-sort-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-search').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-folder-row').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-tags-row').style.display = inTrash ? 'none' : '';
@@ -1717,6 +1753,29 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(
     if (e.target === editorEl && downOnBackdrop) closeEditor();
     downOnBackdrop = false;
   });
+}
+
+/* iOS-style edge swipe: starting a touch within a thin strip at the very
+   left of the screen and dragging right closes the editor, mirroring the
+   system back-swipe gesture users already know. */
+{
+  const editorCard = document.getElementById('editor-card');
+  const EDGE_ZONE = 24, MIN_DISTANCE = 80, MAX_VERTICAL_DRIFT = 60;
+  let startX = null, startY = null, fromEdge = false;
+  editorCard.addEventListener('touchstart', e => {
+    if (!isMobileLayout() || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY;
+    fromEdge = t.clientX <= EDGE_ZONE;
+  }, { passive: true });
+  editorCard.addEventListener('touchend', e => {
+    if (!fromEdge || startX === null) { startX = null; return; }
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    if (dx > MIN_DISTANCE && dy < MAX_VERTICAL_DRIFT) closeEditor();
+    startX = null; fromEdge = false;
+  }, { passive: true });
 }
 </script>
 </body>
