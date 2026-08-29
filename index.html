@@ -487,6 +487,7 @@ function refreshOpenEditorIfIdle() {
   currentTags = [...(note.theme || [])];
   renderTagChips();
   updatePreview();
+  editBaseUpdatedAt = note.updated_at; // we're now showing the latest — no conflict against this version
 }
 
 /* ── Settings (sort preferences), stored per-account in Supabase so every
@@ -825,6 +826,12 @@ function nextDragItem(item) {
   return sib;
 }
 
+function prevDragItem(item) {
+  let sib = item.previousElementSibling;
+  while (sib && !(sib.classList.contains('card') || sib.classList.contains('row'))) sib = sib.previousElementSibling;
+  return sib;
+}
+
 function updateDropTarget(x, y, sourceItem) {
   clearDropVisuals();
   const el = document.elementFromPoint(x, y);
@@ -838,17 +845,12 @@ function updateDropTarget(x, y, sourceItem) {
       : ((y - rect.top)  > rect.height / 2 ? 'after' : 'before');
     ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-grid,.group-list').dataset.pinnedGroup === '1' };
 
-    // Show the highlight on the leading edge of whichever item will land right
-    // after the new position — the same gap then always looks the same,
-    // whether you're hovering the trailing half of the previous card or the
-    // leading half of the next one.
-    if (side === 'before') {
-      item.classList.add('drop-before');
-    } else {
-      const next = nextDragItem(item);
-      if (next && next !== sourceItem) next.classList.add('drop-before');
-      else item.classList.add('drop-after'); // end of the list — nothing to lead into
-    }
+    // Highlight both sides of the gap the note will drop into: the trailing
+    // edge of the item before the gap, and the leading edge of the item after it.
+    const leadItem  = side === 'before' ? item : nextDragItem(item);
+    const trailItem = side === 'before' ? prevDragItem(item) : item;
+    if (leadItem  && leadItem  !== sourceItem) leadItem.classList.add('drop-before');
+    if (trailItem && trailItem !== sourceItem) trailItem.classList.add('drop-after');
     return;
   }
 
@@ -898,6 +900,7 @@ function syncMobTitle() { document.getElementById('mob-title').textContent = doc
 
 /* ── Open note / editor ── */
 let currentTags = [];
+let editBaseUpdatedAt = null;
 
 function openNote(id) {
   const list = inTrash ? trashList : notes;
@@ -905,6 +908,7 @@ function openNote(id) {
   if (!note) return;
 
   currentId = id;
+  editBaseUpdatedAt = note.updated_at;
   document.getElementById('editor').classList.add('open');
   document.getElementById('e-title').value = note.title || '';
   document.getElementById('e-input').value = note.content || '';
@@ -1032,11 +1036,47 @@ async function save() {
   const title   = document.getElementById('e-title').value;
   const content = document.getElementById('e-input').value;
   const theme   = currentTags;
+  const savingId = currentId;
   try {
-    const { error } = await sb.from('notes').update({ title, content, theme, updated_at: new Date().toISOString() }).eq('id', currentId);
+    // Has this note changed on the server since we started editing it here?
+    // (Covers the offline case too: while offline this check itself fails
+    // and we fall into the catch block below without touching anything.)
+    const { data: current, error: checkErr } = await sb.from('notes').select('updated_at').eq('id', savingId).single();
+    if (checkErr) throw checkErr;
+
+    if (editBaseUpdatedAt && current.updated_at !== editBaseUpdatedAt) {
+      // Someone else changed it in the meantime — don't overwrite their edit.
+      // Save this device's version as a separate note instead; the original is left untouched.
+      const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
+      const { data: copy, error: copyErr } = await sb.from('notes').insert({
+        user_id: uid,
+        title: (title || '無題のメモ') + '(競合コピー)',
+        content, theme,
+        sort_order: minOrder - 1,
+        updated_at: new Date().toISOString()
+      }).select().single();
+      if (copyErr) throw copyErr;
+      notes.unshift(copy);
+      // If this note is still the one open, keep editing continue on the new copy
+      // rather than the now-stale original.
+      if (currentId === savingId) {
+        currentId = copy.id;
+        editBaseUpdatedAt = copy.updated_at;
+        document.getElementById('e-title').value = copy.title;
+      }
+      renderThemes();
+      renderGrid();
+      setStatus('他の端末の変更と競合したためコピーを保存しました');
+      setTimeout(() => setStatus(''), 4000);
+      return;
+    }
+
+    const { error } = await sb.from('notes').update({ title, content, theme, updated_at: new Date().toISOString() }).eq('id', savingId);
     if (error) throw error;
-    const i = notes.findIndex(n => n.id === currentId);
-    if (i >= 0) Object.assign(notes[i], { title, content, theme, updated_at: new Date().toISOString() });
+    const i = notes.findIndex(n => n.id === savingId);
+    const newUpdatedAt = new Date().toISOString();
+    if (i >= 0) Object.assign(notes[i], { title, content, theme, updated_at: newUpdatedAt });
+    if (currentId === savingId) editBaseUpdatedAt = newUpdatedAt;
     renderThemes();
     setStatus('保存済み ✓', 'ok');
     setTimeout(() => setStatus(''), 2500);
