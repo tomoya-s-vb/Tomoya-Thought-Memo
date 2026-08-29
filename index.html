@@ -59,6 +59,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #s-head { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 #s-head span { font-family: var(--mono); font-size: 12px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; }
 #s-head-btns { display: flex; gap: 6px; }
+.export-menu-wrap { position: relative; }
+.export-menu { display:none; position:absolute; top:calc(100% + 4px); right:0; background:var(--surface); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.12); overflow:hidden; z-index:30; min-width:100px; }
+.export-menu.show { display:block; }
+.export-menu button { display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:none; font-family:var(--sans); font-size:12px; color:var(--text2); cursor:pointer; white-space:nowrap; }
+.export-menu button:hover { background:var(--soft); color:var(--text); }
 .hbtn { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: .15s; flex-shrink:0; }
 .hbtn:hover { background: var(--soft); color: var(--text); }
 .hbtn.on { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -258,7 +263,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-tags-row .tinybtn { flex-shrink: 0; }
   #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
   #mob-theme-list .theme-chip { flex-shrink: 0; }
-  #mob-folder-row { padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-folder-row { display: none; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-folder-row.drag-active { display: block; }
   #mob-folder-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
   #mob-folder-list .folder-chip { flex-shrink: 0; font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); white-space: nowrap; }
   #mob-folder-list .folder-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
@@ -303,6 +309,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <span id="s-label">Tomoya Memo</span>
       <div id="s-head-btns">
         <button class="hbtn" id="view-btn" title="表示切替" onclick="toggleView()">▦</button>
+        <div class="export-menu-wrap">
+          <button class="hbtn" title="エクスポート" onclick="toggleExportMenu('export-menu')">⬇</button>
+          <div id="export-menu" class="export-menu">
+            <button onclick="exportNotes('json')">JSON</button>
+            <button onclick="exportNotes('md')">Markdown</button>
+            <button onclick="exportNotes('txt')">テキスト</button>
+          </div>
+        </div>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
         <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
       </div>
@@ -334,6 +348,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
       <button class="hbtn" id="mob-sort-btn" title="並び替えモード切替" onclick="cycleSortMode()">↕</button>
       <span id="mob-title">Tomoya Memo</span>
+      <div class="export-menu-wrap">
+        <button class="hbtn" title="エクスポート" onclick="toggleExportMenu('mob-export-menu')">⬇</button>
+        <div id="mob-export-menu" class="export-menu">
+          <button onclick="exportNotes('json')">JSON</button>
+          <button onclick="exportNotes('md')">Markdown</button>
+          <button onclick="exportNotes('txt')">テキスト</button>
+        </div>
+      </div>
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
     <div id="mob-search"><input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
@@ -344,7 +366,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     </div>
     <div id="grid-wrap"><div id="grid"></div></div>
 
-    <div id="editor" onclick="if(event.target.id==='editor') closeEditor()">
+    <div id="editor">
       <div id="editor-card">
         <div id="e-bar">
           <button id="e-back" onclick="closeEditor()">← 一覧</button>
@@ -457,6 +479,76 @@ async function doLogout() {
    pushed deploy shows up immediately instead of a possibly-cached old copy. */
 function hardRefresh() {
   location.href = location.pathname + '?_=' + Date.now();
+}
+
+/* ── Export ──
+   Always exports every note (not just whatever's currently filtered/visible),
+   since this is meant as a full backup/handoff, not a filtered printout. */
+function toggleExportMenu(menuId) {
+  const menu = document.getElementById(menuId);
+  const wasOpen = menu.classList.contains('show');
+  document.querySelectorAll('.export-menu').forEach(m => m.classList.remove('show'));
+  if (!wasOpen) menu.classList.add('show');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.export-menu-wrap')) {
+    document.querySelectorAll('.export-menu').forEach(m => m.classList.remove('show'));
+  }
+});
+
+function folderNameFor(folderId) {
+  if (!folderId) return '';
+  const f = folders.find(x => x.id === folderId);
+  return f ? f.name : '';
+}
+
+function exportNotes(format) {
+  document.querySelectorAll('.export-menu').forEach(m => m.classList.remove('show'));
+  const sorted = [...notes].sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+  let text, mime, ext;
+  if (format === 'json') {
+    text = JSON.stringify(sorted.map(n => ({
+      title: n.title || '',
+      content: n.content || '',
+      tags: n.theme || [],
+      folder: folderNameFor(n.folder_id) || null,
+      pinned: !!n.pinned,
+      updated_at: n.updated_at
+    })), null, 2);
+    mime = 'application/json';
+    ext = 'json';
+  } else if (format === 'md') {
+    text = sorted.map(n => {
+      const meta = [];
+      if (n.theme && n.theme.length) meta.push('タグ: ' + n.theme.join(', '));
+      const fn = folderNameFor(n.folder_id);
+      if (fn) meta.push('フォルダ: ' + fn);
+      return '# ' + (n.title || '無題のメモ') + '\n\n' + (meta.length ? '_' + meta.join(' / ') + '_\n\n' : '') + (n.content || '');
+    }).join('\n\n---\n\n');
+    mime = 'text/markdown';
+    ext = 'md';
+  } else {
+    text = sorted.map(n => {
+      const meta = [];
+      if (n.theme && n.theme.length) meta.push('タグ: ' + n.theme.join(', '));
+      const fn = folderNameFor(n.folder_id);
+      if (fn) meta.push('フォルダ: ' + fn);
+      return (n.title || '無題のメモ') + '\n' + '-'.repeat(30) + (meta.length ? '\n' + meta.join(' / ') : '') + '\n\n' + (n.content || '');
+    }).join('\n\n\n');
+    mime = 'text/plain';
+    ext = 'txt';
+  }
+
+  const blob = new Blob([text], { type: mime + ';charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tomoya-memo-export-' + new Date().toISOString().slice(0, 10) + '.' + ext;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function enterApp() {
@@ -1180,6 +1272,7 @@ function armDrag(downEvent, item, n) {
     ptrDrag = { id: n.id, sourceItem: item };
     item.classList.add('dragging');
     lockScroll(true); // stop the list from scrolling under the finger while dragging
+    document.getElementById('mob-folder-row').classList.add('drag-active');
     if (navigator.vibrate) navigator.vibrate(8);
   };
 
@@ -1205,6 +1298,7 @@ function armDrag(downEvent, item, n) {
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
     lockScroll(false);
+    document.getElementById('mob-folder-row').classList.remove('drag-active');
     if (armed) finishDrag();
   };
 
@@ -1610,6 +1704,19 @@ document.getElementById('dialog-bg').addEventListener('click', e => {
   if (e.target === document.getElementById('dialog-bg')) closeDialog();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+
+/* Close the editor on a genuine backdrop click, but not when a text
+   selection dragged from inside the editor happens to release on the
+   backdrop — that's a text-select gesture, not a request to close. */
+{
+  const editorEl = document.getElementById('editor');
+  let downOnBackdrop = false;
+  editorEl.addEventListener('mousedown', e => { downOnBackdrop = (e.target === editorEl); });
+  editorEl.addEventListener('click', e => {
+    if (e.target === editorEl && downOnBackdrop) closeEditor();
+    downOnBackdrop = false;
+  });
+}
 </script>
 </body>
 </html>
