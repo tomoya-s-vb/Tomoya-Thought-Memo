@@ -87,6 +87,26 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .theme-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
 .theme-chip.dragging { opacity: .35; }
 .theme-chip.drop-target { border-color: var(--green); }
+
+/* Folder zone */
+#folder-label-row { padding: 4px 10px 4px 14px; font-family:var(--mono); font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; }
+#folder-list { padding: 2px 10px 6px; display:flex; flex-direction:column; gap:2px; }
+.folder-row { display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:6px; cursor:pointer; transition:.15s; }
+.folder-row:hover { background: var(--soft); }
+.folder-row.active { background: var(--amberbg); }
+.folder-row.active .folder-name { color: var(--amber); font-weight: 500; }
+.folder-row.folder-drop-hover { outline: 2px solid var(--green); outline-offset: -2px; }
+.folder-name { flex:1; font-size:12px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.folder-actions { display:flex; gap:2px; flex-shrink:0; }
+.folder-actions button { width:18px; height:18px; border:none; background:none; color:var(--text3); font-size:10px; cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center; }
+.folder-actions button:hover { background: var(--border); color: var(--text); }
+.folder-actions button.confirm-del { color: var(--red); font-size: 9px; width: auto; padding: 0 4px; }
+.folder-rename-input { flex:1; font-size:12px; font-family:var(--sans); background:var(--bg); border:1px solid var(--text2); border-radius:4px; padding:1px 5px; color:var(--text); outline:none; }
+#folder-add-row { padding: 2px 10px 10px; }
+#folder-add-row input { width:100%; padding:5px 9px; border:1px dashed var(--border); border-radius:6px; background:none; color:var(--text2); font-family:var(--sans); font-size:12px; outline:none; }
+#folder-add-row input:focus { border-style:solid; border-color:var(--text2); }
+#folder-add-row input::placeholder { color:var(--text3); }
+
 #s-foot { margin-top:auto; padding: 10px 12px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
 #s-foot span { font-size:10px; font-family:var(--mono); color:var(--text3); }
 #logout-btn { font-size:10px; font-family:var(--mono); color:var(--text3); background:none; border:none; cursor:pointer; text-decoration:underline; flex-shrink:0; }
@@ -238,6 +258,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-tags-row .tinybtn { flex-shrink: 0; }
   #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
   #mob-theme-list .theme-chip { flex-shrink: 0; }
+  #mob-folder-row { padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-folder-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  #mob-folder-list .folder-chip { flex-shrink: 0; font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); white-space: nowrap; }
+  #mob-folder-list .folder-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
+  #mob-folder-list .folder-chip.folder-drop-hover { outline: 2px solid var(--green); outline-offset: -2px; }
   #e-body.preview-mode #e-input { display: none; }
   #e-body.preview-mode #e-preview { display: block; width: 100%; border-left: none; }
   #grid { padding: 12px; }
@@ -288,6 +313,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="sortbtn" id="sort-auto" onclick="setSortMode('auto')">🕒 更新順</button>
     </div>
     <div id="s-conn"><span class="dot"></span><span id="conn-label">接続確認中…</span></div>
+    <div id="folder-label-row"><span>フォルダ</span></div>
+    <div id="folder-list"></div>
+    <div id="folder-add-row"><input id="folder-add-input" placeholder="＋ 新しいフォルダ" onkeydown="onFolderAddKeydown(event)"></div>
     <div id="theme-label-row">
       <span id="theme-label">タグで絞り込み</span>
       <div id="tag-sort-btns">
@@ -309,6 +337,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
     <div id="mob-search"><input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
+    <div id="mob-folder-row"><div id="mob-folder-list"></div></div>
     <div id="mob-tags-row">
       <button class="tinybtn" id="mob-tag-sort-btn" title="タグの並び替えモード切替" onclick="cycleTagSortMode()">abc</button>
       <div id="mob-theme-list"></div>
@@ -393,6 +422,14 @@ let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = n
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
 let uid = null, viewMode = 'grid';
 
+/* Folder filter state: FOLDER_ALL means "no folder filter" (default, shows
+   everything); FOLDER_UNFILED is a pseudo-folder id for notes with no
+   folder_id. Both are fixed entries always shown above the real folders. */
+const FOLDER_ALL = null;
+const FOLDER_UNFILED = '__unfiled__';
+let folders = [];
+let activeFolder = FOLDER_ALL;
+
 /* ── Auth ──
    Realtime with RLS needs the session's access token explicitly handed to the
    realtime client (sb.realtime.setAuth). Without this, postgres_changes events
@@ -449,15 +486,17 @@ sb.auth.onAuthStateChange((event, session) => {
 /* ── Boot ── */
 async function boot() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
     if (error) throw error;
     notes = data || [];
     setConn(true);
     await loadSettings();
+    await refreshFolders();
     renderThemes();
     renderGrid();
     wireRealtime();
     wireSettingsRealtime();
+    wireFoldersRealtime();
     flushPendingEdits();
     if (new URLSearchParams(location.search).get('new') === '1' && !window.__autoNewDone) {
       window.__autoNewDone = true; newNote();
@@ -489,7 +528,7 @@ function wireRealtime() {
 
 async function refreshQuietly() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
     if (error) throw error;
     notes = data || [];
     setConn(true);
@@ -529,7 +568,8 @@ function draftFor(id, type, fields) {
     title: fields.title, content: fields.content, theme: fields.theme,
     baseUpdatedAt: editBaseUpdatedAt,
     sort_order: localNote ? localNote.sort_order : 0,
-    pinned: localNote ? !!localNote.pinned : false
+    pinned: localNote ? !!localNote.pinned : false,
+    folder_id: localNote ? (localNote.folder_id || null) : null
   };
 }
 
@@ -542,7 +582,7 @@ async function attemptSyncNote(id, fields, opts) {
   if (opts.isNew) {
     const { data, error } = await sb.from('notes').insert({
       id, user_id: uid, title: fields.title, content: fields.content, theme: fields.theme,
-      pinned: !!opts.pinned, sort_order: opts.sort_order, updated_at: new Date().toISOString()
+      pinned: !!opts.pinned, folder_id: opts.folderId || null, sort_order: opts.sort_order, updated_at: new Date().toISOString()
     }).select().single();
     if (error) throw error;
     const i = notes.findIndex(n => n.id === id);
@@ -597,7 +637,8 @@ async function flushOneDraft(id, draft) {
       isNew: draft.type === 'create',
       baseUpdatedAt: draft.baseUpdatedAt,
       sort_order: draft.sort_order,
-      pinned: draft.pinned
+      pinned: draft.pinned,
+      folderId: draft.folder_id
     });
     clearPendingDraft(id);
     if (result.mode === 'fork' && currentId === id) {
@@ -754,6 +795,201 @@ function buildTagChip(t) {
   return chip;
 }
 
+/* ── Folders ──
+   Unlike tags (many-per-note, stored on the note itself), a folder is one-per-note
+   and lives in its own table so it can have its own name/order/identity. Desktop
+   gets full management (rename/reorder/delete) in the sidebar; mobile gets
+   select-to-filter and drag-to-assign only, via simpler chips — the same scope
+   split already used for tag manual-reordering (PC-only), for the same reason:
+   these are fiddlier interactions that don't translate well to a small touch screen. */
+async function refreshFolders() {
+  try {
+    const { data, error } = await sb.from('folders').select('*').order('sort_order', { ascending: true });
+    if (error) throw error;
+    folders = data || [];
+    renderFolders();
+  } catch(e) { console.error('load folders failed', e); }
+}
+
+let foldersRealtimeWired = false;
+function wireFoldersRealtime() {
+  if (foldersRealtimeWired) return;
+  foldersRealtimeWired = true;
+  sb.channel('folders-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, () => refreshFolders())
+    .subscribe();
+}
+
+function selectFolder(id) {
+  activeFolder = (id === FOLDER_ALL) ? FOLDER_ALL : (activeFolder === id ? FOLDER_ALL : id);
+  renderFolders();
+  renderGrid();
+}
+
+function renderFolders() {
+  const sorted = [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  const desktop = document.getElementById('folder-list');
+  desktop.innerHTML = '';
+  desktop.appendChild(buildFolderRow({ id: FOLDER_ALL, name: 'すべて' }, true));
+  desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
+  sorted.forEach((f, i) => desktop.appendChild(buildFolderRow(f, false, i === 0, i === sorted.length - 1)));
+
+  const mobile = document.getElementById('mob-folder-list');
+  mobile.innerHTML = '';
+  mobile.appendChild(buildFolderChip({ id: FOLDER_ALL, name: 'すべて' }));
+  mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
+  sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
+}
+
+/* A folder row is a valid drop target for assigning a dragged note (see
+   updateDropTarget) whenever it has a real or pseudo folder id — "すべて"
+   deliberately has no dataset.folderId so it can't be dropped on. */
+function buildFolderRow(folder, isPseudo, isFirst, isLast) {
+  const row = document.createElement('div');
+  row.className = 'folder-row' + (activeFolder === folder.id ? ' active' : '');
+  if (folder.id !== FOLDER_ALL) {
+    row.classList.add('folder-drop-zone');
+    row.dataset.folderId = folder.id === FOLDER_UNFILED ? '' : folder.id;
+  }
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'folder-name';
+  nameEl.textContent = folder.name;
+  nameEl.onclick = () => selectFolder(folder.id);
+  row.appendChild(nameEl);
+
+  if (!isPseudo) {
+    const actions = document.createElement('div');
+    actions.className = 'folder-actions';
+
+    const up = document.createElement('button');
+    up.type = 'button'; up.textContent = '▲'; up.title = '上へ'; up.disabled = isFirst;
+    up.onclick = e => { e.stopPropagation(); moveFolder(folder, -1); };
+
+    const down = document.createElement('button');
+    down.type = 'button'; down.textContent = '▼'; down.title = '下へ'; down.disabled = isLast;
+    down.onclick = e => { e.stopPropagation(); moveFolder(folder, 1); };
+
+    const rename = document.createElement('button');
+    rename.type = 'button'; rename.textContent = '✎'; rename.title = '名前を変更';
+    rename.onclick = e => { e.stopPropagation(); startRenameFolder(folder, nameEl); };
+
+    const del = document.createElement('button');
+    del.type = 'button'; del.textContent = '×'; del.title = '削除';
+    del.onclick = e => { e.stopPropagation(); deleteFolder(folder, del); };
+
+    actions.append(up, down, rename, del);
+    row.appendChild(actions);
+  }
+  return row;
+}
+
+function buildFolderChip(folder) {
+  const chip = document.createElement('div');
+  chip.className = 'folder-chip' + (activeFolder === folder.id ? ' active' : '');
+  chip.textContent = folder.name;
+  if (folder.id !== FOLDER_ALL) {
+    chip.classList.add('folder-drop-zone');
+    chip.dataset.folderId = folder.id === FOLDER_UNFILED ? '' : folder.id;
+  }
+  chip.onclick = () => selectFolder(folder.id);
+  return chip;
+}
+
+function startRenameFolder(folder, nameEl) {
+  const input = document.createElement('input');
+  input.className = 'folder-rename-input';
+  input.value = folder.name;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const commit = async () => {
+    if (committed) return;
+    committed = true;
+    const newName = input.value.trim() || folder.name;
+    if (newName !== folder.name) {
+      folder.name = newName;
+      try { await sb.from('folders').update({ name: newName }).eq('id', folder.id); }
+      catch(e) { console.error('rename folder failed', e); }
+    }
+    renderFolders();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { committed = true; renderFolders(); }
+  });
+}
+
+async function moveFolder(folder, direction) {
+  const sorted = [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const i = sorted.findIndex(f => f.id === folder.id);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= sorted.length) return;
+  [sorted[i].sort_order, sorted[j].sort_order] = [sorted[j].sort_order, sorted[i].sort_order];
+  renderFolders();
+  try {
+    await Promise.all([
+      sb.from('folders').update({ sort_order: sorted[i].sort_order }).eq('id', sorted[i].id),
+      sb.from('folders').update({ sort_order: sorted[j].sort_order }).eq('id', sorted[j].id)
+    ]);
+  } catch(e) { console.error('reorder folders failed', e); }
+}
+
+let folderDeleteArmed = null;
+async function deleteFolder(folder, btn) {
+  if (folderDeleteArmed !== folder.id) {
+    folderDeleteArmed = folder.id;
+    btn.textContent = '確認';
+    btn.classList.add('confirm-del');
+    setTimeout(() => { if (folderDeleteArmed === folder.id) { folderDeleteArmed = null; renderFolders(); } }, 3000);
+    return;
+  }
+  folderDeleteArmed = null;
+  folders = folders.filter(f => f.id !== folder.id);
+  if (activeFolder === folder.id) activeFolder = FOLDER_ALL;
+  notes.forEach(n => { if (n.folder_id === folder.id) n.folder_id = null; }); // DB does the same via ON DELETE SET NULL
+  renderFolders();
+  renderGrid();
+  try { await sb.from('folders').delete().eq('id', folder.id); }
+  catch(e) { console.error('delete folder failed', e); }
+}
+
+function onFolderAddKeydown(e) {
+  if (e.key !== 'Enter') return;
+  const input = document.getElementById('folder-add-input');
+  createFolder(input.value);
+  input.value = '';
+}
+
+async function createFolder(name) {
+  name = name.trim();
+  if (!name || !uid) return;
+  const maxOrder = folders.reduce((m,f) => Math.max(m, f.sort_order ?? 0), 0);
+  try {
+    const { data, error } = await sb.from('folders').insert({ user_id: uid, name, sort_order: maxOrder + 1 }).select().single();
+    if (error) throw error;
+    folders.push(data);
+    renderFolders();
+  } catch(e) { console.error('create folder failed', e); }
+}
+
+/* Drag a note onto a folder row/chip to file it there (see updateDropTarget /
+   finishDrag in the drag-to-reorder section, which detect this case). */
+async function assignToFolder(id, folderId) {
+  const n = notes.find(x => x.id === id);
+  if (!n) return;
+  const siblings = notes.filter(x => x.id !== id && (x.folder_id || null) === (folderId || null) && !!x.pinned === !!n.pinned);
+  n.folder_id = folderId;
+  n.sort_order = siblings.length ? Math.max(...siblings.map(x => x.sort_order ?? 0)) + 1 : 0;
+  renderGrid();
+  try { await sb.from('notes').update({ folder_id: folderId, sort_order: n.sort_order }).eq('id', id); }
+  catch(e) { console.error('folder assign error', e); }
+}
+
 /* ── View mode (card grid / list) ── */
 function toggleView() {
   viewMode = viewMode === 'grid' ? 'list' : 'grid';
@@ -772,7 +1008,8 @@ function getFiltered() {
   const q = query.toLowerCase();
   list = list.filter(n =>
     (!q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q)) &&
-    (!activeTheme || inTrash || (n.theme||[]).includes(activeTheme))
+    (!activeTheme || inTrash || (n.theme||[]).includes(activeTheme)) &&
+    (activeFolder === FOLDER_ALL || inTrash || (activeFolder === FOLDER_UNFILED ? !n.folder_id : n.folder_id === activeFolder))
   );
   return list;
 }
@@ -980,6 +1217,7 @@ function armDrag(downEvent, item, n) {
 
 function clearDropVisuals() {
   document.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+  document.querySelectorAll('.folder-drop-hover').forEach(el => el.classList.remove('folder-drop-hover'));
 }
 
 function nextDragItem(item) {
@@ -997,6 +1235,15 @@ function prevDragItem(item) {
 function updateDropTarget(x, y, sourceItem) {
   clearDropVisuals();
   const el = document.elementFromPoint(x, y);
+
+  // Dropping onto a folder row/chip files the note there instead of reordering it.
+  const folderEl = el && el.closest('.folder-drop-zone');
+  if (folderEl) {
+    folderEl.classList.add('folder-drop-hover');
+    ptrDrag.target = { folderId: folderEl.dataset.folderId || null };
+    return;
+  }
+
   const item = el && el.closest('.card,.row');
 
   if (item && item !== sourceItem) {
@@ -1025,7 +1272,8 @@ function finishDrag() {
   clearDropVisuals();
   ptrDrag.sourceItem.classList.remove('dragging');
   const t = ptrDrag.target;
-  if (t) reorder(ptrDrag.id, t.id, t.pinnedGroup, t.side === 'after');
+  if (t && 'folderId' in t) assignToFolder(ptrDrag.id, t.folderId || null);
+  else if (t) reorder(ptrDrag.id, t.id, t.pinnedGroup, t.side === 'after');
   ptrDrag = null;
   setTimeout(() => { dragMoved = false; }, 30); // swallow the synthetic click that follows a drag
 }
@@ -1211,7 +1459,8 @@ async function save() {
     const result = await attemptSyncNote(savingId, { title, content, theme }, {
       isNew, baseUpdatedAt,
       sort_order: localNote ? localNote.sort_order : 0,
-      pinned: localNote ? !!localNote.pinned : false
+      pinned: localNote ? !!localNote.pinned : false,
+      folderId: localNote ? (localNote.folder_id || null) : null
     });
     clearPendingDraft(savingId); // successfully synced — the local draft is no longer needed
 
@@ -1243,8 +1492,9 @@ async function save() {
 async function newNote() {
   const id = crypto.randomUUID();
   const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
+  const folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
-    id, user_id: uid, title: '', content: '', theme: [], pinned: false,
+    id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
     sort_order: minOrder - 1, updated_at: new Date().toISOString(),
     __pendingCreate: true
   };
@@ -1255,7 +1505,7 @@ async function newNote() {
 
   try {
     const { data, error } = await sb.from('notes').insert({
-      id, user_id: uid, title: '', content: '', theme: [], pinned: false,
+      id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
       sort_order: localNote.sort_order, updated_at: localNote.updated_at
     }).select().single();
     if (error) throw error;
@@ -1265,7 +1515,7 @@ async function newNote() {
     clearPendingDraft(id); // the row now exists — any draft written in the meantime becomes a normal 'update' on the next edit
   } catch(e) {
     // Offline — queue this as a pending creation; flushPendingEdits() inserts it once back online.
-    savePendingDraft(id, { type: 'create', title: '', content: '', theme: [], baseUpdatedAt: null, sort_order: localNote.sort_order, pinned: false });
+    savePendingDraft(id, { type: 'create', title: '', content: '', theme: [], baseUpdatedAt: null, sort_order: localNote.sort_order, pinned: false, folder_id: folderId });
     renderGrid();
   }
 }
@@ -1309,6 +1559,7 @@ async function toggleTrash() {
   currentId = null;
   query     = '';
   activeTheme = null;
+  activeFolder = FOLDER_ALL;
   document.getElementById('search-input').value    = '';
   document.getElementById('mob-search-input').value = '';
   document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Tomoya Memo';
@@ -1320,8 +1571,10 @@ async function toggleTrash() {
   document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-sort-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-search').style.display = inTrash ? 'none' : '';
+  document.getElementById('mob-folder-row').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-tags-row').style.display = inTrash ? 'none' : '';
   closeEditor();
+  renderFolders();
   renderThemes();
   renderGrid();
   if (inTrash) {
