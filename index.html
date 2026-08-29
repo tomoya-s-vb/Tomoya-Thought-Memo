@@ -236,7 +236,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-tags-row .tinybtn { flex-shrink: 0; }
   #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
   #mob-theme-list .theme-chip { flex-shrink: 0; }
-  #e-preview { display: none !important; }
+  #e-body.preview-mode #e-input { display: none; }
+  #e-body.preview-mode #e-preview { display: block; width: 100%; border-left: none; }
   #grid { padding: 12px; }
   .group-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .card { height: 140px; }
@@ -359,22 +360,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* Auto-linked URLs in the preview pane: plain click does nothing (so reading a
-   note never accidentally navigates you away from the app), Ctrl/Cmd+click
-   opens in a new tab. On mobile, a real <a> naturally gets Safari's native
-   long-press "Open / Share" menu — no extra code needed for that part. */
+/* Auto-linked URLs in the preview pane always open in a new tab (target=_blank),
+   so reading a note never navigates the app itself away. On mobile, a real <a>
+   also gets Safari's native long-press "Open / Share" menu automatically. */
 {
   const linkRenderer = new marked.Renderer();
   const originalLink = linkRenderer.link.bind(linkRenderer);
   linkRenderer.link = (href, title, text) => originalLink(href, title, text).replace('<a ', '<a target="_blank" rel="noopener noreferrer" ');
   marked.use({ renderer: linkRenderer });
 }
-document.getElementById('e-preview').addEventListener('click', e => {
-  const a = e.target.closest('a');
-  if (!a) return;
-  e.preventDefault();
-  if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener');
-});
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
@@ -754,8 +748,14 @@ function wireDrag(item, n, groupPinned) {
   item.addEventListener('pointerdown', e => {
     if (e.target.closest('.pin-btn')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.pointerType !== 'touch') e.preventDefault(); // stops native text-select/drag-ghost on mouse
     armDrag(e, item, n, groupPinned);
   });
+}
+
+function lockScroll(lock) {
+  const el = document.getElementById('grid-wrap');
+  el.style.overflowY = lock ? 'hidden' : '';
 }
 
 function armDrag(downEvent, item, n, groupPinned) {
@@ -771,6 +771,7 @@ function armDrag(downEvent, item, n, groupPinned) {
     dragMoved = true;
     ptrDrag = { id: n.id, sourceItem: item };
     item.classList.add('dragging');
+    lockScroll(true); // stop the list from scrolling under the finger while dragging
     if (navigator.vibrate) navigator.vibrate(8);
   };
 
@@ -795,6 +796,7 @@ function armDrag(downEvent, item, n, groupPinned) {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
+    lockScroll(false);
     if (armed) finishDrag(groupPinned);
   };
 
@@ -906,6 +908,7 @@ function closeEditor() {
 function togglePreview() {
   showPreview = !showPreview;
   document.getElementById('btn-preview').className = showPreview ? 'ebtn active' : 'ebtn';
+  document.getElementById('e-body').classList.toggle('preview-mode', showPreview);
   document.getElementById('e-preview').style.display = showPreview ? 'block' : 'none';
   updatePreview();
 }
