@@ -918,11 +918,23 @@ async function attemptSyncNote(id, fields, opts) {
     return { mode: 'created', updatedAt: data.updated_at };
   }
 
-  const { data: current, error: checkErr } = await sb.from('notes').select('updated_at').eq('id', id).maybeSingle();
+  const { data: current, error: checkErr } = await sb.from('notes').select('updated_at,title,content,theme').eq('id', id).maybeSingle();
   if (checkErr) throw checkErr;
   if (!current) return { mode: 'deleted' }; // note no longer exists server-side — nothing to sync into
 
   if (opts.baseUpdatedAt && current.updated_at !== opts.baseUpdatedAt) {
+    // A stale leftover draft (e.g. from a session that closed before its save
+    // finished) can look like a conflict even though its content already
+    // matches what's on the server — nothing was actually lost, so just drop
+    // it instead of forking a needless copy.
+    const sameContent = current.title === fields.title && current.content === fields.content &&
+      JSON.stringify(current.theme || []) === JSON.stringify(fields.theme || []);
+    if (sameContent) {
+      const i = notes.findIndex(n => n.id === id);
+      if (i >= 0) Object.assign(notes[i], current);
+      return { mode: 'noop', updatedAt: current.updated_at };
+    }
+
     const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
     const { data: copy, error: copyErr } = await sb.from('notes').insert({
       user_id: uid,
@@ -959,25 +971,27 @@ async function flushPendingEdits() {
 }
 
 async function flushOneDraft(id, draft) {
-  try {
-    const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme }, {
-      isNew: draft.type === 'create',
-      baseUpdatedAt: draft.baseUpdatedAt,
-      sort_order: draft.sort_order,
-      pinned: draft.pinned,
-      folderId: draft.folder_id
-    });
-    clearPendingDraft(id);
-    if (result.mode === 'fork' && currentId === id) {
-      currentId = result.copy.id;
-      editBaseUpdatedAt = result.copy.updated_at;
-      document.getElementById('e-title').value = result.copy.title;
-    } else if ((result.mode === 'update' || result.mode === 'created') && currentId === id) {
-      editBaseUpdatedAt = result.updatedAt;
-    }
-    renderThemes();
-    renderGrid();
-  } catch(e) { console.error('flush pending draft failed', e); } // still offline/unreachable — leave it queued
+  return enqueueSave(async () => {
+    try {
+      const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme }, {
+        isNew: draft.type === 'create',
+        baseUpdatedAt: draft.baseUpdatedAt,
+        sort_order: draft.sort_order,
+        pinned: draft.pinned,
+        folderId: draft.folder_id
+      });
+      clearPendingDraft(id);
+      if (result.mode === 'fork' && currentId === id) {
+        currentId = result.copy.id;
+        editBaseUpdatedAt = result.copy.updated_at;
+        document.getElementById('e-title').value = result.copy.title;
+      } else if ((result.mode === 'update' || result.mode === 'created' || result.mode === 'noop') && currentId === id) {
+        editBaseUpdatedAt = result.updatedAt;
+      }
+      renderThemes();
+      renderGrid();
+    } catch(e) { console.error('flush pending draft failed', e); } // still offline/unreachable — leave it queued
+  });
 }
 
 /* If the note currently open in the editor changed on another device, pull the
@@ -1804,16 +1818,19 @@ function flushPendingSave() {
   }
 }
 
-/* save() calls are chained (never run concurrently). Without this, typing
-   continuously could trigger a second debounced save before the first one's
-   network round-trip finished updating editBaseUpdatedAt — the second save
-   would then compare against a base that was already stale by the time it
-   ran, misreading its own just-completed sibling save as an external change
-   and forking a spurious "conflict copy" even on a single device, online. */
+/* Every save-like operation (interactive typing, and background flushing of
+   offline/leftover drafts) is chained through here so at most one runs at a
+   time. Without this, a background flush and active typing on the same note
+   could interleave and read editBaseUpdatedAt before the other had updated
+   it — each misreading the other's just-completed write as an external
+   change and forking a spurious "conflict copy" even on one device, online. */
 let saveChain = Promise.resolve();
-function save() {
-  saveChain = saveChain.then(doSave, doSave);
+function enqueueSave(fn) {
+  saveChain = saveChain.then(fn, fn);
   return saveChain;
+}
+function save() {
+  return enqueueSave(doSave);
 }
 
 async function doSave() {
@@ -1848,7 +1865,7 @@ async function doSave() {
       return;
     }
 
-    if ((result.mode === 'update' || result.mode === 'created') && currentId === savingId) editBaseUpdatedAt = result.updatedAt;
+    if ((result.mode === 'update' || result.mode === 'created' || result.mode === 'noop') && currentId === savingId) editBaseUpdatedAt = result.updatedAt;
     renderThemes();
     renderGrid();
     setStatus('保存済み ✓', 'ok');
