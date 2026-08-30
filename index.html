@@ -67,8 +67,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .hbtn { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: .15s; flex-shrink:0; }
 .hbtn:hover { background: var(--soft); color: var(--text); }
 .hbtn.on { background: var(--text); color: var(--bg); border-color: var(--text); }
-#s-search { padding: 10px 12px; border-bottom: 1px solid var(--border); }
-#s-search input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
+#s-search { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+#s-search input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
 #s-search input:focus { border-color: var(--text2); }
 #s-search input::placeholder { color: var(--text3); }
 
@@ -227,6 +227,35 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .d-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .d-btns button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: none; font-family: var(--sans); font-size: 13px; color: var(--text); cursor: pointer; }
 .d-btns button.confirm { background: var(--red); color: #fff; border-color: var(--red); }
+.d-btns button.confirm.ai { background: var(--green); border-color: var(--green); }
+
+/* AI organize preview dialog */
+#ai-dialog-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; padding: 20px; }
+#ai-dialog-bg.show { display: flex; }
+#ai-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; width: 100%; max-width: 520px; }
+#ai-dialog h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; }
+#ai-dialog p { font-size: 12px; color: var(--text3); margin-bottom: 12px; }
+#ai-dialog-text { width: 100%; height: 260px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.7; resize: vertical; outline: none; margin-bottom: 14px; }
+#ai-dialog-text:focus { border-color: var(--text2); }
+
+/* AI-ask answer panel */
+#ai-answer-panel { display: none; margin: 12px 18px 0; background: var(--surface); border: 1px solid var(--amberbg); border-radius: 10px; padding: 14px 16px; }
+#ai-answer-panel.show { display: block; }
+#ai-answer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+#ai-answer-q { font-family: var(--mono); font-size: 11px; color: var(--amber); }
+#ai-answer-head button { border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
+#ai-answer-body { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+#ai-answer-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+#ai-answer-refs .ref-chip { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); cursor: pointer; }
+#ai-answer-refs .ref-chip:hover { background: var(--soft); }
+
+/* Shared full-width sidebar action button (synthesize) */
+#synth-row, #mob-synth-row { padding: 4px 10px 12px; }
+.hbtn-wide { width: 100%; padding: 8px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--text2); font-family: var(--sans); font-size: 12px; cursor: pointer; }
+.hbtn-wide:hover { background: var(--soft); }
+.hbtn-wide:disabled { opacity: .35; cursor: default; }
+.hbtn-wide:disabled:hover { background: none; }
+#mob-synth-row { padding: 8px 16px; border-bottom: 1px solid var(--border); display: none; }
 
 /* List view (alternative to card grid) */
 #grid.list-mode { display: flex; flex-direction: column; gap: 0; padding: 0; }
@@ -257,9 +286,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #sidebar { display: none; }
   #mob-topbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   #mob-title { font-size: 14px; font-weight: 500; flex: 1; text-align: center; }
-  #mob-search { display: block; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #mob-search input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; }
+  #mob-search { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #mob-search input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; }
   #mob-search input::placeholder { color: var(--text3); }
+  #mob-synth-row { display: block; }
   #mob-tags-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   #mob-tags-row .tinybtn { flex-shrink: 0; }
   #mob-theme-list { display: flex; gap: 6px; overflow-x: auto; flex: 1; padding-bottom: 2px; }
@@ -289,9 +319,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
      and delete sits away from the back button so it's harder to mis-tap. */
   #e-bar { position: relative; }
   #e-back { order: 1; }
-  #btn-preview { order: 2; margin-left: auto; }
-  #btn-del, #btn-res { order: 3; }
-  #e-title { order: 4; flex-basis: 100%; }
+  #btn-organize { order: 2; margin-left: auto; }
+  #btn-preview { order: 3; }
+  #btn-del, #btn-res { order: 4; }
+  #e-title { order: 5; flex-basis: 100%; }
   #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
@@ -331,7 +362,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
       </div>
     </div>
-    <div id="s-search"><input id="search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
+    <div id="s-search">
+      <input id="search-input" placeholder="検索…" oninput="onSearch(this.value)">
+      <button class="hbtn" id="ask-btn" title="AIに質問する" onclick="askAI()">✨</button>
+    </div>
     <div id="sort-row">
       <button class="sortbtn" id="sort-manual" onclick="setSortMode('manual')">↕ 手動</button>
       <button class="sortbtn" id="sort-auto" onclick="setSortMode('auto')">🕒 更新順</button>
@@ -348,6 +382,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
     </div>
     <div id="theme-list"></div>
+    <div id="synth-row"><button class="hbtn-wide" id="synth-btn" onclick="synthesizeArticle()">✨ この絞り込みで記事化</button></div>
     <div id="s-foot"><span>ホーム画面に追加で一発起動</span><button id="logout-btn" onclick="doLogout()">ログアウト</button></div>
   </div>
 
@@ -367,12 +402,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
-    <div id="mob-search"><input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)"></div>
+    <div id="mob-search">
+      <input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)">
+      <button class="hbtn" id="mob-ask-btn" title="AIに質問する" onclick="askAI()">✨</button>
+    </div>
     <div id="mob-folder-row"><div id="mob-folder-list"></div></div>
     <div id="mob-tags-row">
       <button class="tinybtn" id="mob-tag-sort-btn" title="タグの並び替えモード切替" onclick="cycleTagSortMode()">abc</button>
       <div id="mob-theme-list"></div>
     </div>
+    <div id="mob-synth-row"><button class="hbtn-wide" id="mob-synth-btn" onclick="synthesizeArticle()">✨ この絞り込みで記事化</button></div>
     <div id="grid-wrap"><div id="grid"></div></div>
 
     <div id="editor">
@@ -381,6 +420,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           <button id="e-back" onclick="closeEditor()">← 一覧</button>
           <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
           <span id="e-status"></span>
+          <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
           <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
           <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
           <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
@@ -413,6 +453,27 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="confirm" onclick="doDelete()">ゴミ箱へ移動</button>
     </div>
   </div>
+</div>
+
+<div id="ai-dialog-bg">
+  <div id="ai-dialog">
+    <h3 id="ai-dialog-title">✨ 整理案</h3>
+    <p id="ai-dialog-hint">内容を確認・編集してから採用してください。</p>
+    <textarea id="ai-dialog-text"></textarea>
+    <div class="d-btns">
+      <button onclick="closeAIDialog()">キャンセル</button>
+      <button class="confirm ai" id="ai-dialog-apply" onclick="applyAIDialog()">採用する</button>
+    </div>
+  </div>
+</div>
+
+<div id="ai-answer-panel">
+  <div id="ai-answer-head">
+    <span id="ai-answer-q"></span>
+    <button onclick="closeAIAnswer()">✕</button>
+  </div>
+  <div id="ai-answer-body"></div>
+  <div id="ai-answer-refs"></div>
 </div>
 
 <script>
@@ -558,6 +619,171 @@ function exportNotes(format) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/* ── Claude integration ──
+   All three features go through one Edge Function (claude-proxy) that holds
+   the Anthropic API key server-side — the browser only ever sends the user's
+   own Supabase session token, never the API key itself. */
+async function callClaude(task, payload) {
+  const { data, error } = await sb.functions.invoke('claude-proxy', { body: { task, ...payload } });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+/* Notes visible under the current tag/folder filter, ignoring the search box
+   text — used as the corpus for synthesize/ask, where that text is the
+   article topic or the question itself, not a keyword filter. */
+function getFilteredForAI() {
+  return notes.filter(n =>
+    (!activeTheme || (n.theme || []).includes(activeTheme)) &&
+    (activeFolder === FOLDER_ALL || (activeFolder === FOLDER_UNFILED ? !n.folder_id : n.folder_id === activeFolder))
+  );
+}
+
+/* ── ① Organize / clean up a note (whole note, or just the selected text) ── */
+async function organizeNote() {
+  if (!currentId || inTrash) return;
+  const input = document.getElementById('e-input');
+  const hasSelection = input.selectionStart !== input.selectionEnd;
+  const range = hasSelection ? { start: input.selectionStart, end: input.selectionEnd } : null;
+  const text = hasSelection ? input.value.slice(range.start, range.end) : input.value;
+  if (!text.trim()) return;
+
+  const btn = document.getElementById('btn-organize');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = '整理中…';
+  try {
+    const data = await callClaude('organize', { text });
+    openAIDialog(
+      hasSelection ? '✨ 選択範囲の整理案' : '✨ 整理案',
+      '内容を確認・編集してから採用してください。',
+      data.result || '',
+      finalText => {
+        if (range) input.setRangeText(finalText, range.start, range.end, 'end');
+        else input.value = finalText;
+        onEdit();
+        updatePreview();
+      }
+    );
+  } catch(e) {
+    alert('整理に失敗しました: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+/* Generic "review Claude's suggestion, edit if needed, then apply" dialog,
+   shared by any feature that shouldn't silently overwrite text. */
+let aiDialogApplyFn = null;
+function openAIDialog(title, hint, text, onApply) {
+  document.getElementById('ai-dialog-title').textContent = title;
+  document.getElementById('ai-dialog-hint').textContent = hint;
+  document.getElementById('ai-dialog-text').value = text;
+  aiDialogApplyFn = onApply;
+  document.getElementById('ai-dialog-bg').classList.add('show');
+}
+function closeAIDialog() {
+  document.getElementById('ai-dialog-bg').classList.remove('show');
+  aiDialogApplyFn = null;
+}
+function applyAIDialog() {
+  const text = document.getElementById('ai-dialog-text').value;
+  if (aiDialogApplyFn) aiDialogApplyFn(text);
+  closeAIDialog();
+}
+
+/* ── ③ Synthesize whatever's currently filtered into one note.com-style draft ── */
+function updateSynthButtonState() {
+  const active = !inTrash && !(activeFolder === FOLDER_ALL && !activeTheme);
+  ['synth-btn', 'mob-synth-btn'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !active;
+  });
+}
+
+async function synthesizeArticle() {
+  if (activeFolder === FOLDER_ALL && !activeTheme) {
+    alert('先にタグかフォルダで絞り込んでください。');
+    return;
+  }
+  const corpus = getFilteredForAI();
+  if (!corpus.length) { alert('絞り込み範囲に対象のメモがありません。'); return; }
+
+  const guideNote = notes.find(n => (n.theme || []).includes('スタイルガイド'));
+  const styleGuide = guideNote ? guideNote.content : '';
+
+  const btns = ['synth-btn', 'mob-synth-btn'].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.textContent = '生成中…'; });
+  try {
+    const payload = corpus.map(n => ({ title: n.title, content: n.content }));
+    const data = await callClaude('synthesize', { notes: payload, styleGuide });
+    await createDraftNote(data.title || '無題の記事', data.content || '');
+  } catch(e) {
+    alert('記事化に失敗しました: ' + e.message);
+  } finally {
+    btns.forEach(b => { b.disabled = false; b.textContent = '✨ この絞り込みで記事化'; });
+    updateSynthButtonState();
+  }
+}
+
+async function createDraftNote(title, content) {
+  const id = crypto.randomUUID();
+  const minOrder = notes.reduce((m, n) => Math.min(m, n.sort_order ?? 0), 0);
+  const updatedAt = new Date().toISOString();
+  try {
+    const { data, error } = await sb.from('notes').insert({
+      id, user_id: uid, title, content, theme: ['AI下書き'], pinned: false, folder_id: null,
+      sort_order: minOrder - 1, updated_at: updatedAt
+    }).select().single();
+    if (error) throw error;
+    notes.unshift(data);
+    renderThemes();
+    renderGrid();
+    openNote(data.id);
+  } catch(e) {
+    alert('メモの作成に失敗しました: ' + e.message);
+  }
+}
+
+/* ── ⑤ Ask a question over the currently-filtered notes ── */
+async function askAI() {
+  const question = query.trim();
+  if (!question) { alert('検索欄に質問を入力してください。'); return; }
+  const corpus = getFilteredForAI();
+  if (!corpus.length) { alert('検索対象のメモがありません。'); return; }
+
+  const btns = ['ask-btn', 'mob-ask-btn'].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const payload = corpus.map(n => ({ title: n.title, content: n.content }));
+    const data = await callClaude('ask', { question, notes: payload });
+    const refs = (data.referenced || []).map(i => corpus[i - 1]).filter(Boolean);
+    showAIAnswer(question, data.answer || '', refs);
+  } catch(e) {
+    showAIAnswer(question, '質問に失敗しました: ' + e.message, []);
+  } finally {
+    btns.forEach(b => { b.disabled = false; });
+  }
+}
+
+function showAIAnswer(question, answer, refNotes) {
+  document.getElementById('ai-answer-q').textContent = '質問: ' + question;
+  document.getElementById('ai-answer-body').textContent = answer;
+  const refsEl = document.getElementById('ai-answer-refs');
+  refsEl.innerHTML = '';
+  refNotes.forEach(n => {
+    const chip = document.createElement('span');
+    chip.className = 'ref-chip';
+    chip.textContent = n.title || '無題のメモ';
+    chip.onclick = () => { closeAIAnswer(); openNote(n.id); };
+    refsEl.appendChild(chip);
+  });
+  document.getElementById('ai-answer-panel').classList.add('show');
+}
+function closeAIAnswer() {
+  document.getElementById('ai-answer-panel').classList.remove('show');
 }
 
 function enterApp() {
@@ -1137,6 +1363,7 @@ function getSorted() {
 }
 
 function renderGrid() {
+  updateSynthButtonState();
   const el = document.getElementById('grid');
   el.classList.toggle('list-mode', viewMode === 'list');
   el.innerHTML = '';
