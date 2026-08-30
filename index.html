@@ -167,6 +167,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-back:hover { color: var(--text); }
 #e-title { flex: 1; min-width:140px; background: none; border: none; font-size: 16px; font-weight: 500; font-family: var(--sans); color: var(--text); outline: none; }
 #e-title::placeholder { color: var(--text3); font-weight: 300; }
+#e-folder-row { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#e-folder-icon { font-size: 13px; opacity: .7; }
+#e-folder-select { flex: 1; max-width: 220px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text2); font-family: var(--sans); font-size: 12px; outline: none; }
+#e-folder-select:focus { border-color: var(--text2); }
 #e-tags-row { padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
 #e-tags-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 #e-tags-chips:empty { margin-bottom: 0; }
@@ -425,6 +429,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
           <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
           <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
+        </div>
+        <div id="e-folder-row">
+          <span id="e-folder-icon">📁</span>
+          <select id="e-folder-select" onchange="onFolderSelectChange()"></select>
         </div>
         <div id="e-tags-row">
           <div id="e-tags-chips"></div>
@@ -1199,6 +1207,35 @@ function renderFolders() {
   mobile.appendChild(buildFolderChip({ id: FOLDER_ALL, name: 'すべて' }));
   mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
   sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
+
+  if (currentId && !inTrash) {
+    const n = notes.find(x => x.id === currentId);
+    if (n) renderFolderSelect(n.folder_id || null);
+  }
+}
+
+/* Folder picker inside the editor — lets you file the open note without
+   having to drag its card in the grid. */
+function renderFolderSelect(currentFolderId) {
+  const sel = document.getElementById('e-folder-select');
+  sel.innerHTML = '';
+  const unfiled = document.createElement('option');
+  unfiled.value = '';
+  unfiled.textContent = '未分類';
+  sel.appendChild(unfiled);
+  [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    sel.appendChild(opt);
+  });
+  sel.value = currentFolderId || '';
+}
+
+function onFolderSelectChange() {
+  if (!currentId || inTrash) return;
+  const value = document.getElementById('e-folder-select').value || null;
+  assignToFolder(currentId, value);
 }
 
 /* A folder row is a valid drop target for assigning a dragged note (see
@@ -1706,6 +1743,9 @@ function openNote(id) {
   document.getElementById('e-tag-input-wrap').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('e-tag-suggest').style.display = 'none';
   renderTagChips();
+
+  document.getElementById('e-folder-row').style.display = inTrash ? 'none' : 'flex';
+  renderFolderSelect(note.folder_id || null);
 
   updatePreview();
   setStatus(pending ? '未送信の変更があります' : '');
