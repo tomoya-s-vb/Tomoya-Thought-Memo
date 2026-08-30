@@ -1577,7 +1577,19 @@ function flushPendingSave() {
   }
 }
 
-async function save() {
+/* save() calls are chained (never run concurrently). Without this, typing
+   continuously could trigger a second debounced save before the first one's
+   network round-trip finished updating editBaseUpdatedAt — the second save
+   would then compare against a base that was already stale by the time it
+   ran, misreading its own just-completed sibling save as an external change
+   and forking a spurious "conflict copy" even on a single device, online. */
+let saveChain = Promise.resolve();
+function save() {
+  saveChain = saveChain.then(doSave, doSave);
+  return saveChain;
+}
+
+async function doSave() {
   saveTimer = null;
   if (!currentId || inTrash) return;
   const title   = document.getElementById('e-title').value;
