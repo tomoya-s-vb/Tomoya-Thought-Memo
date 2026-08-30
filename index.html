@@ -239,13 +239,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #ai-dialog-text:focus { border-color: var(--text2); }
 
 /* AI-ask answer panel */
-#ai-answer-panel { display: none; margin: 12px 18px 0; background: var(--surface); border: 1px solid var(--amberbg); border-radius: 10px; padding: 14px 16px; }
-#ai-answer-panel.show { display: block; }
+#ai-answer-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; padding: 20px; }
+#ai-answer-bg.show { display: flex; }
+#ai-answer-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto; }
 #ai-answer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 #ai-answer-q { font-family: var(--mono); font-size: 11px; color: var(--amber); }
 #ai-answer-head button { border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
 #ai-answer-body { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
-#ai-answer-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+#ai-answer-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; margin-bottom: 14px; }
 #ai-answer-refs .ref-chip { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); cursor: pointer; }
 #ai-answer-refs .ref-chip:hover { background: var(--soft); }
 
@@ -467,13 +468,19 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   </div>
 </div>
 
-<div id="ai-answer-panel">
-  <div id="ai-answer-head">
-    <span id="ai-answer-q"></span>
-    <button onclick="closeAIAnswer()">✕</button>
+<div id="ai-answer-bg">
+  <div id="ai-answer-panel">
+    <div id="ai-answer-head">
+      <span id="ai-answer-q"></span>
+      <button onclick="closeAIAnswer()">✕</button>
+    </div>
+    <div id="ai-answer-body"></div>
+    <div id="ai-answer-refs"></div>
+    <div class="d-btns">
+      <button onclick="closeAIAnswer()">閉じる</button>
+      <button class="confirm ai" onclick="saveAIAnswerAsNote()">✨ 新規メモとして保存</button>
+    </div>
   </div>
-  <div id="ai-answer-body"></div>
-  <div id="ai-answer-refs"></div>
 </div>
 
 <script>
@@ -768,7 +775,10 @@ async function askAI() {
   }
 }
 
+let lastAIAnswer = null; // { question, answer } — for the "save as new note" button
+
 function showAIAnswer(question, answer, refNotes) {
+  lastAIAnswer = { question, answer };
   document.getElementById('ai-answer-q').textContent = '質問: ' + question;
   document.getElementById('ai-answer-body').textContent = answer;
   const refsEl = document.getElementById('ai-answer-refs');
@@ -780,10 +790,16 @@ function showAIAnswer(question, answer, refNotes) {
     chip.onclick = () => { closeAIAnswer(); openNote(n.id); };
     refsEl.appendChild(chip);
   });
-  document.getElementById('ai-answer-panel').classList.add('show');
+  document.getElementById('ai-answer-bg').classList.add('show');
 }
 function closeAIAnswer() {
-  document.getElementById('ai-answer-panel').classList.remove('show');
+  document.getElementById('ai-answer-bg').classList.remove('show');
+}
+async function saveAIAnswerAsNote() {
+  if (!lastAIAnswer) return;
+  const { question, answer } = lastAIAnswer;
+  closeAIAnswer();
+  await createDraftNote(question, answer);
 }
 
 function enterApp() {
@@ -1872,8 +1888,10 @@ async function doSave() {
     setTimeout(() => setStatus(''), 2500);
   } catch(e) {
     // Offline or unreachable — the draft written in onEdit() stays in localStorage
-    // and flushPendingEdits() will retry once the connection comes back.
+    // and flushPendingEdits() will retry once the connection comes back. Still
+    // re-render so this note's card picks up the "未送信" dot right away.
     setStatus('オフライン・未送信', 'err');
+    renderGrid();
   }
 }
 
