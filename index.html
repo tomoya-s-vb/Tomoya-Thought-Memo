@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
@@ -20,7 +20,7 @@
   --text: #1a1916; --text2: #6b6860; --text3: #a9a79f; --soft: #e8e6df;
   --green: #2d6a4f; --greenbg: #eaf4ee; --red: #9b2c2c; --redbg: #fdf0f0;
   --amber: #a9720b; --amberbg: #f8f0dd;
-  --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
+  --mono: 'BIZ UDGothic', monospace; --sans: 'BIZ UDPGothic', sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -118,7 +118,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #logout-btn:hover { color: var(--text); }
 
 /* Main */
-#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position:relative; }
+#main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position:relative; border-left: 1px solid var(--border); }
 
 /* Grid of cards */
 #grid-wrap { flex:1; overflow-y:auto; scrollbar-gutter: stable; }
@@ -158,12 +158,18 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
 .card .pending-dot { position: absolute; top: 12px; left: 12px; }
 
-/* Editor: centered modal on desktop */
-#editor { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
-#editor.open { display: flex; }
-#editor-card { background: var(--bg); border-radius: 12px; width: 100%; max-width: 640px; height: 80vh; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+/* Editor: permanent center pane on desktop (mobile media query below turns
+   this back into a full-screen overlay, matching how it behaves on phones) */
+#editor {
+  flex: 3; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg);
+}
+#editor-card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+#editor-empty { display: none; flex: 1; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; text-align: center; padding: 40px; line-height: 1.8; }
+#editor-card.empty #editor-empty { display: flex; }
+#editor-card.empty #e-bar, #editor-card.empty #e-folder-row, #editor-card.empty #e-tags-row, #editor-card.empty #e-body { display: none; }
 #e-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
-#e-back { display:flex; align-items:center; gap:5px; background:none; border:none; cursor:pointer; color:var(--text2); font-size:13px; font-family:var(--sans); padding:4px 2px; flex-shrink:0; }
+#e-back { display:none; align-items:center; gap:5px; background:none; border:none; cursor:pointer; color:var(--text2); font-size:13px; font-family:var(--sans); padding:4px 2px; flex-shrink:0; }
 #e-back:hover { color: var(--text); }
 #e-title { flex: 1; min-width:140px; background: none; border: none; font-size: 16px; font-weight: 500; font-family: var(--sans); color: var(--text); outline: none; }
 #e-title::placeholder { color: var(--text3); font-weight: 300; }
@@ -312,8 +318,13 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   .row-title { width: auto; flex: 1; }
   .row-body { display: none; }
 
-  /* Editor: full-screen instead of centered modal */
-  #editor { background: none; padding: 0; align-items: stretch; }
+  /* Editor: full-screen overlay on mobile (desktop keeps it as a permanent
+     center pane — see the base #editor rule above the media queries) */
+  #editor {
+    position: fixed; inset: 0; z-index: 50; background: none; padding: 0;
+    display: none; align-items: stretch; justify-content: center;
+  }
+  #editor.open { display: flex; }
   #editor-card {
     max-width: none; width: 100%; height: 100%; max-height: none; border-radius: 0;
     padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
@@ -323,7 +334,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
      this way "保存済み" appearing never pushes preview/delete out of place,
      and delete sits away from the back button so it's harder to mis-tap. */
   #e-bar { position: relative; }
-  #e-back { order: 1; }
+  #e-back { display: flex; order: 1; }
   #btn-organize { order: 2; margin-left: auto; }
   #btn-preview { order: 3; }
   #btn-del, #btn-res { order: 4; }
@@ -391,6 +402,38 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="s-foot"><span>ホーム画面に追加で一発起動</span><button id="logout-btn" onclick="doLogout()">ログアウト</button></div>
   </div>
 
+  <div id="editor">
+    <div id="editor-card" class="empty">
+      <div id="editor-empty">左のフォルダ・タグで絞り込むか、右の一覧からメモを選んでください</div>
+      <div id="e-bar">
+        <button id="e-back" onclick="closeEditor()">← 一覧</button>
+        <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
+        <span id="e-status"></span>
+        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
+        <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
+        <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
+        <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
+      </div>
+      <div id="e-folder-row">
+        <span id="e-folder-icon">📁</span>
+        <select id="e-folder-select" onchange="onFolderSelectChange()"></select>
+      </div>
+      <div id="e-tags-row">
+        <div id="e-tags-chips"></div>
+        <div id="e-tag-input-wrap">
+          <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
+        </div>
+        <div id="e-tag-suggest"></div>
+      </div>
+      <div id="e-body">
+        <textarea id="e-input"
+          placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
+          oninput="onEdit(); updatePreview()"></textarea>
+        <div id="e-preview"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="main">
     <div id="mob-topbar">
       <button class="hbtn" id="mob-refresh-btn" title="再読み込み" onclick="hardRefresh()">⟳</button>
@@ -418,37 +461,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     </div>
     <div id="mob-synth-row"><button class="hbtn-wide" id="mob-synth-btn" onclick="synthesizeArticle()">✨ この絞り込みで記事化</button></div>
     <div id="grid-wrap"><div id="grid"></div></div>
-
-    <div id="editor">
-      <div id="editor-card">
-        <div id="e-bar">
-          <button id="e-back" onclick="closeEditor()">← 一覧</button>
-          <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
-          <span id="e-status"></span>
-          <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
-          <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
-          <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
-          <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
-        </div>
-        <div id="e-folder-row">
-          <span id="e-folder-icon">📁</span>
-          <select id="e-folder-select" onchange="onFolderSelectChange()"></select>
-        </div>
-        <div id="e-tags-row">
-          <div id="e-tags-chips"></div>
-          <div id="e-tag-input-wrap">
-            <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
-          </div>
-          <div id="e-tag-suggest"></div>
-        </div>
-        <div id="e-body">
-          <textarea id="e-input"
-            placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
-            oninput="onEdit(); updatePreview()"></textarea>
-          <div id="e-preview"></div>
-        </div>
-      </div>
-    </div>
   </div>
 
 </div>
@@ -851,6 +863,8 @@ async function boot() {
     flushPendingEdits();
     if (new URLSearchParams(location.search).get('new') === '1' && !window.__autoNewDone) {
       window.__autoNewDone = true; newNote();
+    } else {
+      autoOpenFirstForFilter();
     }
   } catch(e) { setConn(false); console.error(e); }
 }
@@ -1139,6 +1153,7 @@ function buildTagChip(t) {
     activeTheme = activeTheme === t ? null : t;
     renderThemes();
     renderGrid();
+    autoOpenFirstForFilter();
   };
   if (tagSortMode === 'manual') {
     chip.draggable = true;
@@ -1191,6 +1206,7 @@ function selectFolder(id) {
   activeFolder = (id === FOLDER_ALL) ? FOLDER_ALL : (activeFolder === id ? FOLDER_ALL : id);
   renderFolders();
   renderGrid();
+  autoOpenFirstForFilter();
 }
 
 function renderFolders() {
@@ -1729,6 +1745,7 @@ function openNote(id) {
   currentId = id;
   editBaseUpdatedAt = pending ? pending.baseUpdatedAt : note.updated_at;
   document.getElementById('editor').classList.add('open');
+  document.getElementById('editor-card').classList.remove('empty');
   document.getElementById('e-title').value = pending ? pending.title : (note.title || '');
   document.getElementById('e-input').value = pending ? pending.content : (note.content || '');
   document.getElementById('e-title').disabled = inTrash;
@@ -1754,7 +1771,25 @@ function closeEditor() {
   flushPendingSave();
   document.getElementById('editor').classList.remove('open');
   currentId = null;
+  if (!isMobileLayout()) document.getElementById('editor-card').classList.add('empty');
 }
+
+/* Desktop: the editor pane is always visible, so switching folder/tag filters
+   should immediately show something useful there — the top pinned note (or
+   just the top note) of the new filter — rather than leaving stale content
+   or an empty pane the user has to click into themselves. Mobile keeps its
+   own flow (tap a card to open it) since the editor is a full-screen overlay
+   there, not a permanent pane. */
+function autoOpenFirstForFilter() {
+  if (isMobileLayout() || inTrash) return;
+  const filtered = getFiltered();
+  const pinned = sortGroup(filtered.filter(n => n.pinned));
+  const unpinned = sortGroup(filtered.filter(n => !n.pinned));
+  const target = pinned[0] || unpinned[0];
+  if (target) openNote(target.id);
+  else closeEditor();
+}
+
 
 function togglePreview() {
   showPreview = !showPreview;
@@ -2055,6 +2090,36 @@ document.getElementById('dialog-bg').addEventListener('click', e => {
   if (e.target === document.getElementById('dialog-bg')) closeDialog();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+
+/* Ctrl/Cmd+C or +X with no selection acts on the whole current line, like
+   many code editors — otherwise plain copy/cut only work on an explicit
+   selection, which is easy to forget for a quick "grab this line" gesture. */
+document.getElementById('e-input').addEventListener('keydown', async e => {
+  const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
+  const isCut  = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x';
+  if (!isCopy && !isCut) return;
+  const el = e.target;
+  if (el.selectionStart !== el.selectionEnd) return; // real selection — leave default behavior alone
+
+  const val = el.value;
+  const pos = el.selectionStart;
+  const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+  let lineEnd = val.indexOf('\n', pos);
+  const hasTrailingNewline = lineEnd !== -1;
+  if (!hasTrailingNewline) lineEnd = val.length;
+  const lineText = val.slice(lineStart, lineEnd);
+
+  e.preventDefault();
+  try { await navigator.clipboard.writeText(lineText); } catch(err) { console.error('clipboard write failed', err); }
+
+  if (isCut) {
+    const removeEnd = hasTrailingNewline ? lineEnd + 1 : lineEnd;
+    el.value = val.slice(0, lineStart) + val.slice(removeEnd);
+    el.selectionStart = el.selectionEnd = lineStart;
+    onEdit();
+    updatePreview();
+  }
+});
 
 /* Close the editor on a genuine backdrop click, but not when a text
    selection dragged from inside the editor happens to release on the
