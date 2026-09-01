@@ -73,6 +73,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #s-search input::placeholder { color: var(--text3); }
 
 #sort-row { padding: 0 12px 10px; display:flex; gap:6px; }
+#preview-row { padding: 0 12px 10px; display:flex; gap:6px; }
 .sortbtn { flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text2); font-family:var(--mono); font-size:11px; cursor:pointer; transition:.15s; }
 .sortbtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 
@@ -133,7 +134,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 .card {
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  padding: 13px 15px; height: 168px; display: flex; flex-direction: column;
+  padding: 13px 15px; height: 140px; display: flex; flex-direction: column;
   cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .1s; position: relative;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
@@ -144,8 +145,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .card.drop-before { box-shadow: -3px 0 0 var(--green) inset; }
 .card.drop-after  { box-shadow:  3px 0 0 var(--green) inset; }
 .card-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:40px; margin-bottom: 6px; }
-.card-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.65; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; word-break: break-word; }
+.card-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.65; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word; }
 .card-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; margin-top: 8px; }
+#grid.title-only .card { height: auto; min-height: 0; }
+#grid.title-only .card-title { margin-bottom: 0; }
+#grid.title-only .card-body { display: none; }
+#grid.title-only .row-body { display: none; }
 .card-tags { display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; max-height: 19px; }
 .tag-chip { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
 .card-date { font-size: 10px; font-family: var(--mono); color: var(--text3); white-space: nowrap; flex-shrink:0; }
@@ -162,7 +167,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
    this back into a full-screen overlay, matching how it behaves on phones) */
 #editor {
   flex: 3; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg);
+  background: var(--bg); border-left: 1px solid var(--border);
 }
 #editor-card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 #editor-empty { display: none; flex: 1; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; text-align: center; padding: 40px; line-height: 1.8; }
@@ -321,7 +326,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   /* Editor: full-screen overlay on mobile (desktop keeps it as a permanent
      center pane — see the base #editor rule above the media queries) */
   #editor {
-    position: fixed; inset: 0; z-index: 50; background: none; padding: 0;
+    position: fixed; inset: 0; z-index: 50; background: none; padding: 0; border-left: none;
     display: none; align-items: stretch; justify-content: center;
   }
   #editor.open { display: flex; }
@@ -386,6 +391,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="sortbtn" id="sort-manual" onclick="setSortMode('manual')">↕ 手動</button>
       <button class="sortbtn" id="sort-auto" onclick="setSortMode('auto')">🕒 更新順</button>
     </div>
+    <div id="preview-row">
+      <button class="sortbtn" id="preview-title" onclick="setCardPreviewMode('title')">タイトルのみ</button>
+      <button class="sortbtn active" id="preview-full" onclick="setCardPreviewMode('preview')">3行表示</button>
+    </div>
     <div id="s-conn"><span class="dot"></span><span id="conn-label">接続確認中…</span></div>
     <div id="folder-label-row"><span>フォルダ</span></div>
     <div id="folder-list"></div>
@@ -400,38 +409,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="theme-list"></div>
     <div id="synth-row"><button class="hbtn-wide" id="synth-btn" onclick="synthesizeArticle()">✨ この絞り込みで記事化</button></div>
     <div id="s-foot"><span>ホーム画面に追加で一発起動</span><button id="logout-btn" onclick="doLogout()">ログアウト</button></div>
-  </div>
-
-  <div id="editor">
-    <div id="editor-card" class="empty">
-      <div id="editor-empty">左のフォルダ・タグで絞り込むか、右の一覧からメモを選んでください</div>
-      <div id="e-bar">
-        <button id="e-back" onclick="closeEditor()">← 一覧</button>
-        <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
-        <span id="e-status"></span>
-        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
-        <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
-        <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
-        <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
-      </div>
-      <div id="e-folder-row">
-        <span id="e-folder-icon">📁</span>
-        <select id="e-folder-select" onchange="onFolderSelectChange()"></select>
-      </div>
-      <div id="e-tags-row">
-        <div id="e-tags-chips"></div>
-        <div id="e-tag-input-wrap">
-          <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
-        </div>
-        <div id="e-tag-suggest"></div>
-      </div>
-      <div id="e-body">
-        <textarea id="e-input"
-          placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
-          oninput="onEdit(); updatePreview()"></textarea>
-        <div id="e-preview"></div>
-      </div>
-    </div>
   </div>
 
   <div id="main">
@@ -463,6 +440,37 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="grid-wrap"><div id="grid"></div></div>
   </div>
 
+  <div id="editor">
+    <div id="editor-card" class="empty">
+      <div id="editor-empty">画面左側のフォルダ・タグで絞り込むか、隣の一覧からメモを選んでください</div>
+      <div id="e-bar">
+        <button id="e-back" onclick="closeEditor()">← 一覧</button>
+        <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
+        <span id="e-status"></span>
+        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
+        <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
+        <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
+        <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
+      </div>
+      <div id="e-folder-row">
+        <span id="e-folder-icon">📁</span>
+        <select id="e-folder-select" onchange="onFolderSelectChange()"></select>
+      </div>
+      <div id="e-tags-row">
+        <div id="e-tags-chips"></div>
+        <div id="e-tag-input-wrap">
+          <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
+        </div>
+        <div id="e-tag-suggest"></div>
+      </div>
+      <div id="e-body">
+        <textarea id="e-input"
+          placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
+          oninput="onEdit(); updatePreview()"></textarea>
+        <div id="e-preview"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="dialog-bg">
@@ -539,6 +547,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
+let cardPreviewMode = 'preview'; // 'preview' (title + 3 lines) or 'title' (title only)
 let uid = null, viewMode = 'grid';
 
 /* Folder filter state: FOLDER_ALL means "no folder filter" (default, shows
@@ -1099,6 +1108,13 @@ function setSortMode(mode, persist = true) {
   if (persist) saveSettings({ note_sort_mode: mode });
 }
 
+function setCardPreviewMode(mode) {
+  cardPreviewMode = mode;
+  document.getElementById('preview-title').className = mode === 'title'   ? 'sortbtn active' : 'sortbtn';
+  document.getElementById('preview-full').className  = mode === 'preview' ? 'sortbtn active' : 'sortbtn';
+  renderGrid();
+}
+
 /* ── Tag filter (uses the "theme" data field) ── */
 let tagSortMode = 'alpha';
 let tagOrder = [];
@@ -1214,15 +1230,15 @@ function renderFolders() {
 
   const desktop = document.getElementById('folder-list');
   desktop.innerHTML = '';
-  desktop.appendChild(buildFolderRow({ id: FOLDER_ALL, name: 'すべて' }, true));
-  desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
   sorted.forEach((f, i) => desktop.appendChild(buildFolderRow(f, false, i === 0, i === sorted.length - 1)));
+  desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
+  desktop.appendChild(buildFolderRow({ id: FOLDER_ALL, name: 'すべて' }, true));
 
   const mobile = document.getElementById('mob-folder-list');
   mobile.innerHTML = '';
-  mobile.appendChild(buildFolderChip({ id: FOLDER_ALL, name: 'すべて' }));
-  mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
   sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
+  mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
+  mobile.appendChild(buildFolderChip({ id: FOLDER_ALL, name: 'すべて' }));
 
   if (currentId && !inTrash) {
     const n = notes.find(x => x.id === currentId);
@@ -1449,6 +1465,7 @@ function renderGrid() {
   updateSynthButtonState();
   const el = document.getElementById('grid');
   el.classList.toggle('list-mode', viewMode === 'list');
+  el.classList.toggle('title-only', cardPreviewMode === 'title');
   el.innerHTML = '';
 
   if (inTrash) {
@@ -2093,13 +2110,19 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(
 
 /* Ctrl/Cmd+C or +X with no selection acts on the whole current line, like
    many code editors — otherwise plain copy/cut only work on an explicit
-   selection, which is easy to forget for a quick "grab this line" gesture. */
+   selection, which is easy to forget for a quick "grab this line" gesture.
+   A paste immediately after one of these inserts as a new line before the
+   cursor's line, rather than inline at the cursor — completing the "treat
+   lines as the unit" workflow. Only applies right after our own line-copy/cut;
+   a normal selection copy (from here or elsewhere) still pastes normally. */
+let lastClipboardWasLineCopy = false;
+
 document.getElementById('e-input').addEventListener('keydown', async e => {
   const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
   const isCut  = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x';
   if (!isCopy && !isCut) return;
   const el = e.target;
-  if (el.selectionStart !== el.selectionEnd) return; // real selection — leave default behavior alone
+  if (el.selectionStart !== el.selectionEnd) { lastClipboardWasLineCopy = false; return; } // real selection — leave default behavior alone
 
   const val = el.value;
   const pos = el.selectionStart;
@@ -2110,7 +2133,8 @@ document.getElementById('e-input').addEventListener('keydown', async e => {
   const lineText = val.slice(lineStart, lineEnd);
 
   e.preventDefault();
-  try { await navigator.clipboard.writeText(lineText); } catch(err) { console.error('clipboard write failed', err); }
+  try { await navigator.clipboard.writeText(lineText); lastClipboardWasLineCopy = true; }
+  catch(err) { console.error('clipboard write failed', err); }
 
   if (isCut) {
     const removeEnd = hasTrailingNewline ? lineEnd + 1 : lineEnd;
@@ -2119,6 +2143,24 @@ document.getElementById('e-input').addEventListener('keydown', async e => {
     onEdit();
     updatePreview();
   }
+});
+
+document.getElementById('e-input').addEventListener('paste', e => {
+  if (!lastClipboardWasLineCopy) return; // not from our line-copy/cut — normal paste
+  lastClipboardWasLineCopy = false; // only the very next paste is affected
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (!text) return;
+  e.preventDefault();
+
+  const el = e.target;
+  const val = el.value;
+  const pos = el.selectionStart;
+  const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+  const insertion = text.endsWith('\n') ? text : text + '\n';
+  el.value = val.slice(0, lineStart) + insertion + val.slice(lineStart);
+  el.selectionStart = el.selectionEnd = lineStart + insertion.length;
+  onEdit();
+  updatePreview();
 });
 
 /* Close the editor on a genuine backdrop click, but not when a text
