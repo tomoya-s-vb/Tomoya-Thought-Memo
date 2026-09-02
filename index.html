@@ -10,6 +10,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://itvumfppblhirvbuynwt.supabase.co">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -159,7 +164,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .pin-btn:hover { opacity: .7; }
 .pin-btn.active { opacity: 1; filter: none; }
 .card .pin-btn { position: absolute; top: 8px; right: 9px; }
-.card:has(.pin-btn.active) { border-color: var(--amber); }
+.card.current-editing { border-color: var(--amber); }
+.row.current-editing { box-shadow: inset 3px 0 0 var(--amber); background: var(--amberbg); }
 .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
 .card .pending-dot { position: absolute; top: 12px; left: 12px; }
 
@@ -858,12 +864,19 @@ sb.auth.onAuthStateChange((event, session) => {
 /* ── Boot ── */
 async function boot() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
+    // These three reads are independent of each other, so fetching them
+    // concurrently cuts the wait to roughly the slowest single request
+    // instead of the sum of all three. Purely a timing change — none of
+    // this touches how data is written or reconciled.
+    const [notesResult] = await Promise.all([
+      sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false }),
+      loadSettings(),
+      refreshFolders()
+    ]);
+    const { data, error } = notesResult;
     if (error) throw error;
     notes = data || [];
     setConn(true);
-    await loadSettings();
-    await refreshFolders();
     renderThemes();
     renderGrid();
     wireRealtime();
@@ -1484,6 +1497,17 @@ function renderGrid() {
 
   el.appendChild(buildGroup('📌 ピン留め', pinned, true));
   el.appendChild(buildGroup(null, unpinned, false));
+  updateCurrentEditingHighlight();
+}
+
+/* Highlights whichever card/row is currently open in the editor. Called
+   directly on open/close (not via a full renderGrid) so switching notes
+   stays snappy and doesn't reset scroll position in the list. */
+function updateCurrentEditingHighlight() {
+  document.querySelectorAll('.current-editing').forEach(el => el.classList.remove('current-editing'));
+  if (currentId && !inTrash) {
+    document.querySelectorAll(`[data-id="${currentId}"]`).forEach(el => el.classList.add('current-editing'));
+  }
 }
 
 function buildGroup(label, items, isPinnedGroup) {
@@ -1783,12 +1807,14 @@ function openNote(id) {
 
   updatePreview();
   setStatus(pending ? '未送信の変更があります' : '');
+  updateCurrentEditingHighlight();
 }
 function closeEditor() {
   flushPendingSave();
   document.getElementById('editor').classList.remove('open');
   currentId = null;
   if (!isMobileLayout()) document.getElementById('editor-card').classList.add('empty');
+  updateCurrentEditingHighlight();
 }
 
 /* Desktop: the editor pane is always visible, so switching folder/tag filters
