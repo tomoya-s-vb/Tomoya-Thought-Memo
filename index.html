@@ -2140,12 +2140,21 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(
    A paste immediately after one of these inserts as a new line before the
    cursor's line, rather than inline at the cursor — completing the "treat
    lines as the unit" workflow. Only applies right after our own line-copy/cut;
-   a normal selection copy (from here or elsewhere) still pastes normally. */
+   a normal selection copy (from here or elsewhere) still pastes normally.
+   Ctrl/Cmd+Shift+V always forces a normal inline paste for that one paste,
+   without touching lastClipboardWasLineCopy — so a later plain Ctrl+V can
+   still use the line-insert behavior for the same copied line elsewhere.
+   Text is edited via execCommand('insertText', …) rather than assigning
+   .value directly — a direct assignment wipes the textarea's native undo
+   history, which is what broke Ctrl+Z after a line cut before this fix. */
 let lastClipboardWasLineCopy = false;
+let forceNormalPaste = false;
 
 document.getElementById('e-input').addEventListener('keydown', async e => {
-  const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
-  const isCut  = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x';
+  const isCopy = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'c';
+  const isCut  = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'x';
+  const isPlainPaste = (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v';
+  if (isPlainPaste) { forceNormalPaste = true; return; }
   if (!isCopy && !isCut) return;
   const el = e.target;
   if (el.selectionStart !== el.selectionEnd) { lastClipboardWasLineCopy = false; return; } // real selection — leave default behavior alone
@@ -2164,14 +2173,16 @@ document.getElementById('e-input').addEventListener('keydown', async e => {
 
   if (isCut) {
     const removeEnd = hasTrailingNewline ? lineEnd + 1 : lineEnd;
-    el.value = val.slice(0, lineStart) + val.slice(removeEnd);
-    el.selectionStart = el.selectionEnd = lineStart;
+    el.focus();
+    el.setSelectionRange(lineStart, removeEnd);
+    document.execCommand('insertText', false, ''); // deletes the selection while keeping undo history intact
     onEdit();
     updatePreview();
   }
 });
 
 document.getElementById('e-input').addEventListener('paste', e => {
+  if (forceNormalPaste) { forceNormalPaste = false; return; } // Ctrl/Cmd+Shift+V — let the browser's normal paste happen
   if (!lastClipboardWasLineCopy) return; // not from our line-copy/cut — normal paste
   lastClipboardWasLineCopy = false; // only the very next paste is affected
   const text = (e.clipboardData || window.clipboardData).getData('text');
@@ -2183,8 +2194,9 @@ document.getElementById('e-input').addEventListener('paste', e => {
   const pos = el.selectionStart;
   const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
   const insertion = text.endsWith('\n') ? text : text + '\n';
-  el.value = val.slice(0, lineStart) + insertion + val.slice(lineStart);
-  el.selectionStart = el.selectionEnd = lineStart + insertion.length;
+  el.focus();
+  el.setSelectionRange(lineStart, lineStart);
+  document.execCommand('insertText', false, insertion); // keeps undo history intact
   onEdit();
   updatePreview();
 });
