@@ -162,6 +162,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #grid.title-only .row-body { display: none; }
 .card-tags { display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; max-height: 19px; }
 .tag-chip { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
+.attach-badge { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
 .card-date { font-size: 10px; font-family: var(--mono); color: var(--text3); white-space: nowrap; flex-shrink:0; }
 
 .pin-btn { width: 20px; height: 20px; border: none; background: none; padding: 0; cursor: pointer; font-size: 12px; opacity: .25; filter: grayscale(1); transition: .15s; flex-shrink: 0; }
@@ -182,7 +183,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #editor-card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 #editor-empty { display: none; flex: 1; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; text-align: center; padding: 40px; line-height: 1.8; }
 #editor-card.empty #editor-empty { display: flex; }
-#editor-card.empty #e-bar, #editor-card.empty #e-folder-row, #editor-card.empty #e-tags-row, #editor-card.empty #e-body { display: none; }
+#editor-card.empty #e-bar, #editor-card.empty #e-folder-row, #editor-card.empty #e-tags-row, #editor-card.empty #e-attach-row, #editor-card.empty #e-body { display: none; }
 #e-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
 #e-back { display:none; align-items:center; gap:5px; background:none; border:none; cursor:pointer; color:var(--text2); font-size:13px; font-family:var(--sans); padding:4px 2px; flex-shrink:0; }
 #e-back:hover { color: var(--text); }
@@ -209,6 +210,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
 #e-charcount { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
+#e-attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#e-attach-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.attach-item { position: relative; width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--border); background: var(--soft); overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.attach-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attach-item .attach-file-icon { font-size: 20px; color: var(--text3); }
+.attach-item .attach-name { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8px; font-family: var(--mono); color: #fff; background: rgba(0,0,0,.55); padding: 1px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attach-item .attach-remove { position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; border: none; background: var(--text); color: var(--bg); font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.attach-item.uploading { opacity: .5; }
 .ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
 .ebtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -477,6 +486,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
         </div>
         <div id="e-tag-suggest"></div>
+      </div>
+      <div id="e-attach-row">
+        <div id="e-attach-list"></div>
+        <button type="button" class="ebtn" id="btn-attach" onclick="document.getElementById('e-attach-input').click()">📎 添付</button>
+        <input type="file" id="e-attach-input" multiple accept="image/*,.pdf" style="display:none" onchange="onAttachFilesSelected(event)">
       </div>
       <div id="e-body">
         <textarea id="e-input"
@@ -962,6 +976,7 @@ function draftFor(id, type, fields) {
   return {
     type,
     title: fields.title, content: fields.content, theme: fields.theme,
+    attachments: fields.attachments,
     baseUpdatedAt: editBaseUpdatedAt,
     sort_order: localNote ? localNote.sort_order : 0,
     pinned: localNote ? !!localNote.pinned : false,
@@ -978,6 +993,7 @@ async function attemptSyncNote(id, fields, opts) {
   if (opts.isNew) {
     const { data, error } = await sb.from('notes').insert({
       id, user_id: uid, title: fields.title, content: fields.content, theme: fields.theme,
+      attachments: fields.attachments || [],
       pinned: !!opts.pinned, folder_id: opts.folderId || null, sort_order: opts.sort_order, updated_at: new Date().toISOString()
     }).select().single();
     if (error) throw error;
@@ -1008,7 +1024,7 @@ async function attemptSyncNote(id, fields, opts) {
     const { data: copy, error: copyErr } = await sb.from('notes').insert({
       user_id: uid,
       title: (fields.title || '無題のメモ') + '(競合コピー)',
-      content: fields.content, theme: fields.theme,
+      content: fields.content, theme: fields.theme, attachments: fields.attachments || [],
       sort_order: minOrder - 1, updated_at: new Date().toISOString()
     }).select().single();
     if (copyErr) throw copyErr;
@@ -1042,7 +1058,7 @@ async function flushPendingEdits() {
 async function flushOneDraft(id, draft) {
   return enqueueSave(async () => {
     try {
-      const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme }, {
+      const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme, attachments: draft.attachments }, {
         isNew: draft.type === 'create',
         baseUpdatedAt: draft.baseUpdatedAt,
         sort_order: draft.sort_order,
@@ -1076,7 +1092,10 @@ function refreshOpenEditorIfIdle() {
   document.getElementById('e-input').value = note.content || '';
   currentTags = [...(note.theme || [])];
   renderTagChips();
+  currentAttachments = [...(note.attachments || [])];
+  renderAttachments();
   updatePreview();
+  updateCharCount();
   editBaseUpdatedAt = note.updated_at; // we're now showing the latest — no conflict against this version
 }
 
@@ -1559,7 +1578,8 @@ function displayFieldsFor(n) {
     pending,
     title: pending ? pending.title : n.title,
     content: pending ? pending.content : n.content,
-    theme: pending ? (pending.theme || []) : (n.theme || [])
+    theme: pending ? (pending.theme || []) : (n.theme || []),
+    attachments: pending ? (pending.attachments || []) : (n.attachments || [])
   };
 }
 function tagsHtml(theme, max) {
@@ -1573,8 +1593,12 @@ function wireItemBehavior(item, n) {
   if (!inTrash) item.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
 }
 
+function attachBadgeHtml(attachments) {
+  return (attachments && attachments.length) ? '<span class="attach-badge" title="添付ファイルあり">📎' + attachments.length + '</span>' : '';
+}
+
 function buildCard(n) {
-  const { pending, title, content, theme } = displayFieldsFor(n);
+  const { pending, title, content, theme, attachments } = displayFieldsFor(n);
   const card = document.createElement('div');
   card.className = 'card' + (inTrash ? ' trashed' : '');
   card.dataset.id = n.id;
@@ -1583,14 +1607,14 @@ function buildCard(n) {
     (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
     '<div class="card-title">' + esc(title || '無題のメモ') + '</div>' +
     '<div class="card-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="card-footer"><div class="card-tags">' + tagsHtml(theme, 3) + '</div>' +
+    '<div class="card-footer"><div class="card-tags">' + tagsHtml(theme, 3) + attachBadgeHtml(attachments) + '</div>' +
     '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
   wireItemBehavior(card, n);
   return card;
 }
 
 function buildRow(n) {
-  const { pending, title, content, theme } = displayFieldsFor(n);
+  const { pending, title, content, theme, attachments } = displayFieldsFor(n);
   const row = document.createElement('div');
   row.className = 'row' + (inTrash ? ' trashed' : '');
   row.dataset.id = n.id;
@@ -1599,7 +1623,7 @@ function buildRow(n) {
     (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
     '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
     '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="row-tags">' + tagsHtml(theme, 2) + '</div>' +
+    '<div class="row-tags">' + tagsHtml(theme, 2) + attachBadgeHtml(attachments) + '</div>' +
     '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
   wireItemBehavior(row, n);
   return row;
@@ -1782,6 +1806,7 @@ function syncMobTitle() { document.getElementById('mob-title').textContent = doc
 
 /* ── Open note / editor ── */
 let currentTags = [];
+let currentAttachments = [];
 let editBaseUpdatedAt = null;
 
 function openNote(id) {
@@ -1813,6 +1838,9 @@ function openNote(id) {
 
   document.getElementById('e-folder-row').style.display = inTrash ? 'none' : 'flex';
   renderFolderSelect(note.folder_id || null);
+
+  currentAttachments = pending ? [...(pending.attachments || [])] : [...(note.attachments || [])];
+  renderAttachments();
 
   updatePreview();
   updateCharCount();
@@ -1869,6 +1897,138 @@ function toggleFocusMode() {
   document.getElementById('btn-focus').className = focusMode ? 'ebtn active' : 'ebtn';
 }
 
+/* ── Attachments (images / files) ──
+   Metadata (id/path/name/mime/size) rides along in notes.attachments (jsonb),
+   synced through the exact same draft/save pipeline as title/content/theme —
+   see draftFor/attemptSyncNote/onEdit above. The actual bytes live in the
+   Supabase Storage "attachments" bucket under `${uid}/${noteId}/...`, kept
+   private and read back via short-lived signed URLs (cached in memory only).
+   Images are downscaled/re-encoded client-side before upload to keep storage
+   and egress light. */
+const ATTACH_BUCKET = 'attachments';
+const ATTACH_MAX_DIM = 1600;
+const ATTACH_JPEG_QUALITY = 0.82;
+const signedUrlCache = new Map(); // path -> { url, expiresAt }
+
+async function compressImageFile(file) {
+  if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (Math.max(width, height) > ATTACH_MAX_DIM) {
+      const scale = ATTACH_MAX_DIM / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', ATTACH_JPEG_QUALITY));
+    if (!blob || blob.size >= file.size) return file; // compression didn't help — keep the original
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch(e) {
+    console.error('image compress failed, uploading original', e);
+    return file;
+  }
+}
+
+async function uploadAttachmentFile(file) {
+  const processed = await compressImageFile(file);
+  const attId = crypto.randomUUID();
+  const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, '_').slice(0, 80) || 'file';
+  const path = `${uid}/${currentId}/${attId}-${safeName}`;
+  const { error } = await sb.storage.from(ATTACH_BUCKET).upload(path, processed, { contentType: processed.type || 'application/octet-stream', upsert: false });
+  if (error) throw error;
+  return { id: attId, path, name: file.name, mime: processed.type || file.type || '', size: processed.size };
+}
+
+async function getAttachmentUrl(path) {
+  const cached = signedUrlCache.get(path);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  const { data, error } = await sb.storage.from(ATTACH_BUCKET).createSignedUrl(path, 3600);
+  if (error) throw error;
+  signedUrlCache.set(path, { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 });
+  return data.signedUrl;
+}
+
+async function onAttachFilesSelected(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!files.length || !currentId) return;
+  if (!navigator.onLine) { alert('オフライン時は添付ファイルを追加できません。オンラインになってから試してください。'); return; }
+
+  for (const file of files) {
+    const tempId = 'uploading-' + crypto.randomUUID();
+    renderAttachments(tempId, file.name);
+    try {
+      const meta = await uploadAttachmentFile(file);
+      currentAttachments.push(meta);
+      onEdit();
+    } catch(e) {
+      console.error('attachment upload failed', e);
+      alert('添付に失敗しました: ' + (e.message || e));
+    } finally {
+      renderAttachments();
+    }
+  }
+}
+
+async function removeAttachment(attId) {
+  const idx = currentAttachments.findIndex(a => a.id === attId);
+  if (idx < 0) return;
+  const [removed] = currentAttachments.splice(idx, 1);
+  renderAttachments();
+  onEdit();
+  try { await sb.storage.from(ATTACH_BUCKET).remove([removed.path]); } catch(e) { console.error('attachment delete failed', e); }
+}
+
+function isImageAttachment(a) { return (a.mime || '').startsWith('image/'); }
+
+function renderAttachments(uploadingId, uploadingName) {
+  const el = document.getElementById('e-attach-list');
+  el.innerHTML = '';
+  currentAttachments.forEach(a => {
+    const item = document.createElement('div');
+    item.className = 'attach-item';
+    item.title = a.name;
+    if (isImageAttachment(a)) {
+      const img = document.createElement('img');
+      getAttachmentUrl(a.path).then(url => { img.src = url; }).catch(e => console.error('signed url failed', e));
+      item.appendChild(img);
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'attach-file-icon';
+      icon.textContent = '📄';
+      item.appendChild(icon);
+      const name = document.createElement('span');
+      name.className = 'attach-name';
+      name.textContent = a.name;
+      item.appendChild(name);
+    }
+    item.addEventListener('click', async () => {
+      try { window.open(await getAttachmentUrl(a.path), '_blank', 'noopener'); } catch(e) { console.error(e); }
+    });
+    if (!inTrash) {
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'attach-remove';
+      rm.textContent = '×';
+      rm.setAttribute('aria-label', '添付を削除');
+      rm.onclick = (e) => { e.stopPropagation(); removeAttachment(a.id); };
+      item.appendChild(rm);
+    }
+    el.appendChild(item);
+  });
+  if (uploadingId) {
+    const item = document.createElement('div');
+    item.className = 'attach-item uploading';
+    item.title = uploadingName;
+    item.innerHTML = '<span class="attach-file-icon">⏳</span>';
+    el.appendChild(item);
+  }
+  document.getElementById('btn-attach').style.display = inTrash ? 'none' : '';
+}
+
 function onEdit() {
   if (inTrash || !currentId) return;
   setStatus('…');
@@ -1877,7 +2037,8 @@ function onEdit() {
   savePendingDraft(currentId, draftFor(currentId, type, {
     title: document.getElementById('e-title').value,
     content: document.getElementById('e-input').value,
-    theme: currentTags
+    theme: currentTags,
+    attachments: currentAttachments
   }));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 900);
@@ -1996,12 +2157,13 @@ async function doSave() {
   const title   = document.getElementById('e-title').value;
   const content = document.getElementById('e-input').value;
   const theme   = currentTags;
+  const attachments = currentAttachments;
   const savingId = currentId;
   const localNote = notes.find(n => n.id === savingId);
   const isNew = !!(localNote && localNote.__pendingCreate);
   const baseUpdatedAt = editBaseUpdatedAt;
   try {
-    const result = await attemptSyncNote(savingId, { title, content, theme }, {
+    const result = await attemptSyncNote(savingId, { title, content, theme, attachments }, {
       isNew, baseUpdatedAt,
       sort_order: localNote ? localNote.sort_order : 0,
       pinned: localNote ? !!localNote.pinned : false,
@@ -2041,7 +2203,7 @@ async function newNote() {
   const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
   const folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
-    id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
+    id, user_id: uid, title: '', content: '', theme: [], attachments: [], pinned: false, folder_id: folderId,
     sort_order: minOrder - 1, updated_at: new Date().toISOString(),
     __pendingCreate: true
   };
@@ -2052,7 +2214,7 @@ async function newNote() {
 
   try {
     const { data, error } = await sb.from('notes').insert({
-      id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
+      id, user_id: uid, title: '', content: '', theme: [], attachments: [], pinned: false, folder_id: folderId,
       sort_order: localNote.sort_order, updated_at: localNote.updated_at
     }).select().single();
     if (error) throw error;
