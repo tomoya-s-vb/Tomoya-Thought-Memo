@@ -186,7 +186,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #editor-card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 #editor-empty { display: none; flex: 1; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; text-align: center; padding: 40px; line-height: 1.8; }
 #editor-card.empty #editor-empty { display: flex; }
-#editor-card.empty #e-bar, #editor-card.empty #e-folder-row, #editor-card.empty #e-tags-row, #editor-card.empty #e-attach-row, #editor-card.empty #e-body { display: none; }
+#editor-card.empty #e-bar, #editor-card.empty #e-folder-row, #editor-card.empty #e-tags-row, #editor-card.empty #e-body { display: none; }
 #e-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
 #e-back { display:none; align-items:center; gap:5px; background:none; border:none; cursor:pointer; color:var(--text2); font-size:13px; font-family:var(--sans); padding:4px 2px; flex-shrink:0; }
 #e-back:hover { color: var(--text); }
@@ -213,14 +213,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
 #e-charcount { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
-#e-attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-#e-attach-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.attach-item { position: relative; width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--border); background: var(--soft); overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.attach-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.attach-item .attach-file-icon { font-size: 20px; color: var(--text3); }
-.attach-item .attach-name { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8px; font-family: var(--mono); color: #fff; background: rgba(0,0,0,.55); padding: 1px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.attach-item .attach-remove { position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; border: none; background: var(--text); color: var(--bg); font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.attach-item.uploading { opacity: .5; }
 .ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
 .ebtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -245,6 +237,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-preview ul, #e-preview ol { padding-left: 1.4em; margin: .3em 0; }
 #e-preview li { margin: .1em 0; }
 #e-preview strong { font-weight: 500; }
+#e-preview img { max-width: 100%; border-radius: 8px; display: block; margin: 6px 0; }
 #e-preview em { font-style: italic; }
 #e-preview code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
 #e-preview pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; margin: .4em 0; overflow-x: auto; }
@@ -489,11 +482,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           <input id="e-tag-input" placeholder="タグを入力してEnter…" oninput="onTagInput()" onkeydown="onTagKeydown(event)">
         </div>
         <div id="e-tag-suggest"></div>
-      </div>
-      <div id="e-attach-row">
-        <div id="e-attach-list"></div>
-        <button type="button" class="ebtn" id="btn-attach" onclick="document.getElementById('e-attach-input').click()">📎 添付</button>
-        <input type="file" id="e-attach-input" multiple accept="image/*,.pdf" style="display:none" onchange="onAttachFilesSelected(event)">
       </div>
       <div id="e-body">
         <textarea id="e-input"
@@ -1096,7 +1084,6 @@ function refreshOpenEditorIfIdle() {
   currentTags = [...(note.theme || [])];
   renderTagChips();
   currentAttachments = [...(note.attachments || [])];
-  renderAttachments();
   updatePreview();
   updateCharCount();
   editBaseUpdatedAt = note.updated_at; // we're now showing the latest — no conflict against this version
@@ -1844,7 +1831,6 @@ function openNote(id) {
   renderFolderSelect(note.folder_id || null);
 
   currentAttachments = pending ? [...(pending.attachments || [])] : [...(note.attachments || [])];
-  renderAttachments();
 
   updatePreview();
   updateCharCount();
@@ -1885,7 +1871,18 @@ function togglePreview() {
 }
 function updatePreview() {
   if (!showPreview) return;
-  document.getElementById('e-preview').innerHTML = marked.parse(document.getElementById('e-input').value || '');
+  const preview = document.getElementById('e-preview');
+  preview.innerHTML = marked.parse(document.getElementById('e-input').value || '');
+  // Pasted-image markers render as <img src="attachment:<id>">; resolve each
+  // to a short-lived signed URL now that the HTML is in the DOM (the bucket
+  // is private, so there's no plain URL to bake into the markdown itself).
+  preview.querySelectorAll('img[src^="attachment:"]').forEach(img => {
+    const attId = img.getAttribute('src').slice('attachment:'.length);
+    const att = currentAttachments.find(a => a.id === attId);
+    img.removeAttribute('src');
+    if (!att) { img.alt = '(添付が見つかりません)'; return; }
+    getAttachmentUrl(att.path).then(url => { img.src = url; }).catch(e => { img.alt = '(読み込み失敗)'; console.error(e); });
+  });
 }
 
 function updateCharCount() {
@@ -1936,10 +1933,22 @@ async function compressImageFile(file) {
   }
 }
 
+/* Storage object keys must be ASCII — a Japanese (or otherwise non-ASCII)
+   filename passed straight into the key causes Supabase Storage to reject
+   the upload with "Invalid key". The original filename is preserved
+   separately in the attachment's `name` field for display, so nothing is
+   lost — only the on-disk key gets Latinized. */
+function safeStorageName(filename) {
+  const dot = filename.lastIndexOf('.');
+  const ext = (dot > 0 ? filename.slice(dot) : '').replace(/[^A-Za-z0-9.]/g, '');
+  const base = (dot > 0 ? filename.slice(0, dot) : filename).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 60);
+  return (base || 'file') + ext;
+}
+
 async function uploadAttachmentFile(file) {
   const processed = await compressImageFile(file);
   const attId = crypto.randomUUID();
-  const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, '_').slice(0, 80) || 'file';
+  const safeName = safeStorageName(file.name);
   const path = `${uid}/${currentId}/${attId}-${safeName}`;
   const { error } = await sb.storage.from(ATTACH_BUCKET).upload(path, processed, { contentType: processed.type || 'application/octet-stream', upsert: false });
   if (error) throw error;
@@ -1953,84 +1962,6 @@ async function getAttachmentUrl(path) {
   if (error) throw error;
   signedUrlCache.set(path, { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 });
   return data.signedUrl;
-}
-
-async function onAttachFilesSelected(event) {
-  const files = Array.from(event.target.files || []);
-  event.target.value = '';
-  if (!files.length || !currentId) return;
-  if (!navigator.onLine) { alert('オフライン時は添付ファイルを追加できません。オンラインになってから試してください。'); return; }
-
-  for (const file of files) {
-    const tempId = 'uploading-' + crypto.randomUUID();
-    renderAttachments(tempId, file.name);
-    try {
-      const meta = await uploadAttachmentFile(file);
-      currentAttachments.push(meta);
-      onEdit();
-    } catch(e) {
-      console.error('attachment upload failed', e);
-      alert('添付に失敗しました: ' + (e.message || e));
-    } finally {
-      renderAttachments();
-    }
-  }
-}
-
-async function removeAttachment(attId) {
-  const idx = currentAttachments.findIndex(a => a.id === attId);
-  if (idx < 0) return;
-  const [removed] = currentAttachments.splice(idx, 1);
-  renderAttachments();
-  onEdit();
-  try { await sb.storage.from(ATTACH_BUCKET).remove([removed.path]); } catch(e) { console.error('attachment delete failed', e); }
-}
-
-function isImageAttachment(a) { return (a.mime || '').startsWith('image/'); }
-
-function renderAttachments(uploadingId, uploadingName) {
-  const el = document.getElementById('e-attach-list');
-  el.innerHTML = '';
-  currentAttachments.forEach(a => {
-    const item = document.createElement('div');
-    item.className = 'attach-item';
-    item.title = a.name;
-    if (isImageAttachment(a)) {
-      const img = document.createElement('img');
-      getAttachmentUrl(a.path).then(url => { img.src = url; }).catch(e => console.error('signed url failed', e));
-      item.appendChild(img);
-    } else {
-      const icon = document.createElement('span');
-      icon.className = 'attach-file-icon';
-      icon.textContent = '📄';
-      item.appendChild(icon);
-      const name = document.createElement('span');
-      name.className = 'attach-name';
-      name.textContent = a.name;
-      item.appendChild(name);
-    }
-    item.addEventListener('click', async () => {
-      try { window.open(await getAttachmentUrl(a.path), '_blank', 'noopener'); } catch(e) { console.error(e); }
-    });
-    if (!inTrash) {
-      const rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'attach-remove';
-      rm.textContent = '×';
-      rm.setAttribute('aria-label', '添付を削除');
-      rm.onclick = (e) => { e.stopPropagation(); removeAttachment(a.id); };
-      item.appendChild(rm);
-    }
-    el.appendChild(item);
-  });
-  if (uploadingId) {
-    const item = document.createElement('div');
-    item.className = 'attach-item uploading';
-    item.title = uploadingName;
-    item.innerHTML = '<span class="attach-file-icon">⏳</span>';
-    el.appendChild(item);
-  }
-  document.getElementById('btn-attach').style.display = inTrash ? 'none' : '';
 }
 
 function onEdit() {
@@ -2370,7 +2301,42 @@ document.getElementById('e-input').addEventListener('keydown', async e => {
   }
 });
 
+/* Pasting a screenshot (or any image) straight from the clipboard is the
+   only way to attach a file: it's compressed, uploaded, tracked in
+   currentAttachments (synced like any other note field — see draftFor/
+   attemptSyncNote/onEdit above), and a `![name](attachment:<id>)` marker is
+   dropped at the cursor so it reads inline with the surrounding text. See
+   updatePreview() for how that marker becomes an actual <img> in preview
+   mode. */
+async function handleImagePaste(file, el) {
+  if (!currentId) return;
+  if (!navigator.onLine) { alert('オフライン時は画像を貼り付けられません。オンラインになってから試してください。'); return; }
+  const pos = el.selectionStart;
+  const placeholderName = file.name && file.name !== 'image.png' ? file.name : ('スクリーンショット' + new Date().toLocaleString('ja-JP'));
+  try {
+    const meta = await uploadAttachmentFile(new File([file], placeholderName, { type: file.type }));
+    currentAttachments.push(meta);
+    const marker = '![' + meta.name + '](attachment:' + meta.id + ')\n';
+    el.focus();
+    el.setSelectionRange(pos, pos);
+    document.execCommand('insertText', false, marker); // keeps undo history intact
+    onEdit();
+    updatePreview();
+  } catch(err) {
+    console.error('pasted image upload failed', err);
+    alert('画像の貼り付けに失敗しました: ' + (err.message || err));
+  }
+}
+
 document.getElementById('e-input').addEventListener('paste', e => {
+  const items = (e.clipboardData || window.clipboardData).items || [];
+  const imageItem = Array.from(items).find(it => it.kind === 'file' && it.type.startsWith('image/'));
+  if (imageItem) {
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) handleImagePaste(file, e.target);
+    return;
+  }
   if (forceNormalPaste) { forceNormalPaste = false; return; } // Ctrl/Cmd+Shift+V — let the browser's normal paste happen
   if (!lastClipboardWasLineCopy) return; // not from our line-copy/cut — normal paste
   lastClipboardWasLineCopy = false; // only the very next paste is affected
