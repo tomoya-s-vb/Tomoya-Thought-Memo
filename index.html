@@ -42,6 +42,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 #app.show { display: flex; }
+#app.focus-mode #sidebar, #app.focus-mode #main { display: none; }
+#app.focus-mode #editor { flex: 1; }
 
 /* Login screen */
 #login-screen {
@@ -204,6 +206,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
+#e-charcount { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 .ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
 .ebtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -347,10 +350,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #e-bar { position: relative; }
   #e-back { display: flex; order: 1; }
   #btn-organize { order: 2; margin-left: auto; }
-  #btn-preview { order: 3; }
-  #btn-del, #btn-res { order: 4; }
-  #e-title { order: 5; flex-basis: 100%; }
+  #btn-focus { order: 3; }
+  #btn-preview { order: 4; }
+  #btn-del, #btn-res { order: 5; }
+  #e-title { order: 6; flex-basis: 100%; }
   #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
+  #e-charcount { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
   #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #login-email, #login-pass { font-size: 16px; }
@@ -453,7 +458,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button id="e-back" onclick="closeEditor()">← 一覧</button>
         <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
+        <span id="e-charcount">0字</span>
         <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
+        <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">集中モード</button>
         <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
         <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
         <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
@@ -472,7 +479,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <div id="e-body">
         <textarea id="e-input"
           placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
-          oninput="onEdit(); updatePreview()"></textarea>
+          oninput="onEdit(); updatePreview(); updateCharCount()"></textarea>
         <div id="e-preview"></div>
       </div>
     </div>
@@ -1806,6 +1813,7 @@ function openNote(id) {
   renderFolderSelect(note.folder_id || null);
 
   updatePreview();
+  updateCharCount();
   setStatus(pending ? '未送信の変更があります' : '');
   updateCurrentEditingHighlight();
 }
@@ -1844,6 +1852,19 @@ function togglePreview() {
 function updatePreview() {
   if (!showPreview) return;
   document.getElementById('e-preview').innerHTML = marked.parse(document.getElementById('e-input').value || '');
+}
+
+function updateCharCount() {
+  const len = document.getElementById('e-input').value.length;
+  document.getElementById('e-charcount').textContent = len.toLocaleString('ja-JP') + '字';
+}
+
+/* ── Focus mode: hide sidebar + card list, editor pane keeps its own layout ── */
+let focusMode = false;
+function toggleFocusMode() {
+  focusMode = !focusMode;
+  document.getElementById('app').classList.toggle('focus-mode', focusMode);
+  document.getElementById('btn-focus').className = focusMode ? 'ebtn active' : 'ebtn';
 }
 
 function onEdit() {
