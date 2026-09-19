@@ -42,8 +42,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 #app.show { display: flex; }
-#app.focus-mode #sidebar, #app.focus-mode #main { display: none; }
-#app.focus-mode #editor { flex: 1; }
+/* Focus mode: sidebar/card-list are hidden but keep their layout box
+   (visibility:hidden, not display:none) so the editor pane's own width
+   and position never change — only the two side panes disappear visually. */
+#app.focus-mode #sidebar, #app.focus-mode #main { visibility: hidden; pointer-events: none; }
 
 /* Login screen */
 #login-screen {
