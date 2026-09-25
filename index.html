@@ -597,6 +597,14 @@ let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = n
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
 let cardPreviewMode = 'title'; // 'preview' (title + 3 lines) or 'title' (title only)
 let uid = null, viewMode = 'grid';
+/* Identifies this one continuous page load — not persisted, so a reload gets
+   a fresh id. Written alongside every save so a later conflict can tell
+   "this exact browsing session made both versions" (a flaky connection
+   retrying/continuing on top of its own not-yet-confirmed write — safe to
+   just overwrite) apart from "something else changed the note in between"
+   (a genuine conflict, still worth forking a copy for rather than guessing).
+   See attemptSyncNote's conflict branch below. */
+const sessionId = crypto.randomUUID();
 
 /* Folder filter state: FOLDER_ALL means "no folder filter" (default, shows
    everything); FOLDER_UNFILED is a pseudo-folder id for notes with no
@@ -911,7 +919,7 @@ async function boot() {
     // instead of the sum of all three. Purely a timing change — none of
     // this touches how data is written or reconciled.
     const [notesResult] = await Promise.all([
-      sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false }),
+      sb.from('notes').select('id,title,content,theme,attachments,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false }),
       loadSettings(),
       refreshFolders()
     ]);
@@ -951,15 +959,53 @@ function wireRealtime() {
   if (realtimeWired) return;
   realtimeWired = true;
   sb.channel('notes-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, () => refreshQuietly())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, applyRealtimeNoteChange)
     .subscribe();
 }
 
+/* Patches the one row a postgres_changes event actually touched, rather than
+   re-fetching every note on every single change (each save, from any device,
+   used to trigger a full re-fetch of the whole table — fine for a handful of
+   notes, wasteful once there are hundreds). INSERT/UPDATE payloads always
+   carry the complete new row regardless of the table's replica identity
+   setting, so this needs no schema change to work. */
+function applyRealtimeNoteChange(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload;
+  if (eventType === 'DELETE') {
+    const deletedId = oldRow && oldRow.id;
+    if (!deletedId) return;
+    // Our own swipe-delete already removed this locally and is just waiting
+    // out its undo window — this event is that same delete landing, not new
+    // information, so there's nothing to patch.
+    if (pendingDelete && pendingDelete.note.id === deletedId) return;
+    const before = notes.length;
+    notes = notes.filter(n => n.id !== deletedId);
+    if (notes.length === before) return; // wasn't in our list — nothing changed for us
+  } else if (eventType === 'INSERT' || eventType === 'UPDATE') {
+    if (!newRow) return;
+    const i = notes.findIndex(n => n.id === newRow.id);
+    if (i >= 0) notes[i] = { ...notes[i], ...newRow };
+    else notes.unshift(newRow);
+  } else {
+    return;
+  }
+  setConn(true);
+  renderThemes();
+  if (!inTrash) renderGrid();
+  refreshOpenEditorIfIdle();
+}
+
+/* Full re-fetch, kept for the few spots that need to be sure they have every
+   note fresh from the server (e.g. right after restoring one from trash,
+   where the newly-inserted row's generated id/updated_at aren't known yet) —
+   day-to-day sync goes through applyRealtimeNoteChange above instead. */
 async function refreshQuietly() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,attachments,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
     if (error) throw error;
-    notes = data || [];
+    // Same reasoning as the DELETE case above: don't let a note mid-flight in
+    // a swipe-delete's undo window get pulled back in by this refresh.
+    notes = pendingDelete ? (data || []).filter(n => n.id !== pendingDelete.note.id) : (data || []);
     setConn(true);
     renderThemes();
     if (!inTrash) renderGrid();
@@ -1012,7 +1058,7 @@ async function attemptSyncNote(id, fields, opts) {
   if (opts.isNew) {
     const { data, error } = await sb.from('notes').insert({
       id, user_id: uid, title: fields.title, content: fields.content, theme: fields.theme,
-      attachments: fields.attachments || [],
+      attachments: fields.attachments || [], last_writer_session: sessionId,
       pinned: !!opts.pinned, folder_id: opts.folderId || null, sort_order: opts.sort_order, updated_at: new Date().toISOString()
     }).select().single();
     if (error) throw error;
@@ -1022,7 +1068,7 @@ async function attemptSyncNote(id, fields, opts) {
     return { mode: 'created', updatedAt: data.updated_at };
   }
 
-  const { data: current, error: checkErr } = await sb.from('notes').select('updated_at,title,content,theme').eq('id', id).maybeSingle();
+  const { data: current, error: checkErr } = await sb.from('notes').select('updated_at,title,content,theme,last_writer_session').eq('id', id).maybeSingle();
   if (checkErr) throw checkErr;
   if (!current) return { mode: 'deleted' }; // note no longer exists server-side — nothing to sync into
 
@@ -1039,11 +1085,28 @@ async function attemptSyncNote(id, fields, opts) {
       return { mode: 'noop', updatedAt: current.updated_at };
     }
 
+    // The diverging write came from this exact browser session — typically a
+    // flaky connection where an earlier save of ours looked like it failed
+    // client-side but actually landed, and this save is simply continuing on
+    // top of that now-stale base. Nothing outside this session touched the
+    // note in between, so it's safe to overwrite instead of forking a
+    // "(競合コピー)". A different session's `last_writer_session` means some
+    // other device or tab really did change it — that case still forks below.
+    if (current.last_writer_session === sessionId) {
+      const { data: updated, error } = await sb.from('notes')
+        .update({ ...fields, last_writer_session: sessionId, updated_at: new Date().toISOString() })
+        .eq('id', id).select('updated_at').single();
+      if (error) throw error;
+      const i = notes.findIndex(n => n.id === id);
+      if (i >= 0) Object.assign(notes[i], { ...fields, updated_at: updated.updated_at });
+      return { mode: 'update', updatedAt: updated.updated_at };
+    }
+
     const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
     const { data: copy, error: copyErr } = await sb.from('notes').insert({
       user_id: uid,
       title: (fields.title || '無題のメモ') + '(競合コピー)',
-      content: fields.content, theme: fields.theme, attachments: fields.attachments || [],
+      content: fields.content, theme: fields.theme, attachments: fields.attachments || [], last_writer_session: sessionId,
       sort_order: minOrder - 1, updated_at: new Date().toISOString()
     }).select().single();
     if (copyErr) throw copyErr;
@@ -1052,7 +1115,7 @@ async function attemptSyncNote(id, fields, opts) {
   }
 
   const { data: updated, error } = await sb.from('notes')
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update({ ...fields, last_writer_session: sessionId, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('updated_at')
     .single();
@@ -2307,7 +2370,7 @@ async function newNote() {
 
   try {
     const { data, error } = await sb.from('notes').insert({
-      id, user_id: uid, title: '', content: '', theme: [], attachments: [], pinned: false, folder_id: folderId,
+      id, user_id: uid, title: '', content: '', theme: [], attachments: [], last_writer_session: sessionId, pinned: false, folder_id: folderId,
       sort_order: localNote.sort_order, updated_at: localNote.updated_at
     }).select().single();
     if (error) throw error;
@@ -2347,7 +2410,7 @@ async function restoreNote() {
   if (!note) return;
   try {
     const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
-    await sb.from('notes').insert({ user_id: uid, title: note.title, content: note.content, theme: [], sort_order: minOrder - 1, updated_at: new Date().toISOString() });
+    await sb.from('notes').insert({ user_id: uid, title: note.title, content: note.content, theme: [], last_writer_session: sessionId, sort_order: minOrder - 1, updated_at: new Date().toISOString() });
     await sb.from('trash').delete().eq('id', currentId);
     trashList = trashList.filter(n => n.id !== currentId);
     currentId = null;
