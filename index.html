@@ -77,9 +77,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .hbtn:hover { background: var(--soft); color: var(--text); }
 .hbtn.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 #s-search { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
-#s-search input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
+#s-search input { flex: 1; min-width: 0; padding: 7px 24px 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
 #s-search input:focus { border-color: var(--text2); }
 #s-search input::placeholder { color: var(--text3); }
+
+/* Shared by the desktop and mobile search boxes: a small × that clears the
+   text, shown only once there's something to clear. */
+.search-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.search-clear { display: none; position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border: none; background: none; color: var(--text3); font-size: 15px; line-height: 1; cursor: pointer; border-radius: 50%; align-items: center; justify-content: center; }
+.search-clear:hover { background: var(--soft); color: var(--text); }
+.search-wrap.has-text .search-clear { display: flex; }
 
 #sort-row { padding: 0 12px 10px; display:flex; gap:6px; }
 #preview-row { padding: 0 12px 10px; display:flex; gap:6px; }
@@ -311,8 +318,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
    it vacates. The wrapper clips the card and holds the actions panel
    underneath; the card itself is what actually translates. */
 .swipe-wrap { position: relative; overflow: hidden; border-radius: 10px; }
-.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 112px; display: flex; }
+.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 168px; display: flex; }
 .swipe-btn { flex: 1; border: none; font-size: 18px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.swipe-btn.swipe-dup { background: var(--green); }
 .swipe-btn.swipe-pin { background: var(--amber); }
 .swipe-btn.swipe-del { background: var(--red); }
 .swipe-wrap .card { position: relative; z-index: 1; }
@@ -342,7 +350,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-topbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   #mob-title { font-size: 14px; font-weight: 500; flex: 1; text-align: center; }
   #mob-search { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #mob-search input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; }
+  #mob-search input { flex: 1; min-width: 0; padding: 7px 24px 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; }
   #mob-search input::placeholder { color: var(--text3); }
   #mob-synth-row { display: block; }
   #mob-tags-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -361,6 +369,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   .card { height: 140px; }
   .row-title { width: auto; flex: 1; }
   .row-body { display: none; }
+  /* No top-right pin button on mobile (pinning lives in the swipe panel now),
+     so the date badge and title no longer need to leave room for it. */
+  .card-date-inline { right: 10px; }
+  #grid.title-only .card-title { padding-right: 40px; }
 
   /* Editor: full-screen overlay on mobile (desktop keeps it as a permanent
      center pane — see the base #editor rule above the media queries) */
@@ -379,11 +391,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
      and delete sits away from the back button so it's harder to mis-tap. */
   #e-bar { position: relative; }
   #e-back { display: flex; order: 1; }
-  #btn-organize { order: 2; margin-left: auto; }
-  #btn-focus { order: 3; }
-  #btn-preview { order: 4; }
-  #btn-del, #btn-res { order: 5; }
-  #e-title { order: 6; flex-basis: 100%; }
+  #btn-focus { order: 2; margin-left: auto; }
+  #btn-preview { order: 3; }
+  #btn-duplicate { order: 4; }
+  #btn-organize { order: 5; }
+  #btn-del, #btn-res { order: 6; }
+  #e-title { order: 7; flex-basis: 100%; }
   #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
   #e-charcount { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
@@ -425,7 +438,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
     </div>
     <div id="s-search">
-      <input id="search-input" placeholder="検索…" oninput="onSearch(this.value)">
+      <div class="search-wrap" id="s-search-wrap">
+        <input id="search-input" placeholder="検索…" oninput="onSearch(this.value)">
+        <button type="button" class="search-clear" onclick="clearSearch()">×</button>
+      </div>
       <button class="hbtn" id="ask-btn" title="AIに質問する" onclick="askAI()">✨</button>
     </div>
     <div id="sort-row">
@@ -469,7 +485,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
     </div>
     <div id="mob-search">
-      <input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)">
+      <div class="search-wrap" id="mob-search-wrap">
+        <input id="mob-search-input" placeholder="検索…" oninput="onSearch(this.value)">
+        <button type="button" class="search-clear" onclick="clearSearch()">×</button>
+      </div>
       <button class="hbtn" id="mob-ask-btn" title="AIに質問する" onclick="askAI()">✨</button>
     </div>
     <div id="mob-folder-row"><div id="mob-folder-list"></div></div>
@@ -489,9 +508,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
         <span id="e-charcount">0字</span>
-        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
         <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">集中モード</button>
         <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
+        <button class="ebtn" id="btn-duplicate" onclick="duplicateCurrentNote()" title="複製">複製</button>
+        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
         <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
         <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
       </div>
@@ -739,24 +759,27 @@ async function organizeNote() {
   if (!currentId || inTrash) return;
   const input = document.getElementById('e-input');
   const hasSelection = input.selectionStart !== input.selectionEnd;
-  const range = hasSelection ? { start: input.selectionStart, end: input.selectionEnd } : null;
-  const text = hasSelection ? input.value.slice(range.start, range.end) : input.value;
+  const text = hasSelection ? input.value.slice(input.selectionStart, input.selectionEnd) : input.value;
   if (!text.trim()) return;
+
+  const defaultLen = localStorage.getItem('organizeTargetChars') || '';
+  const lenInput = prompt('仕上がりの目安の文字数を指定できます(空欄でおまかせ)', defaultLen);
+  if (lenInput === null) return; // キャンセル
+  const targetChars = lenInput.trim() ? parseInt(lenInput, 10) : null;
+  try { localStorage.setItem('organizeTargetChars', lenInput.trim()); } catch(e) {}
 
   const btn = document.getElementById('btn-organize');
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = '整理中…';
   try {
-    const data = await callClaude('organize', { text });
+    const data = await callClaude('organize', { text, targetChars });
     openAIDialog(
       hasSelection ? '✨ 選択範囲の整理案' : '✨ 整理案',
-      '内容を確認・編集してから採用してください。',
+      '内容を確認・編集してから採用してください。採用すると新しいメモが作成されます(元のメモはそのまま残ります)。',
       data.result || '',
       finalText => {
-        if (range) input.setRangeText(finalText, range.start, range.end, 'end');
-        else input.value = finalText;
-        onEdit();
-        updatePreview();
+        const baseTitle = document.getElementById('e-title').value || '無題のメモ';
+        createDraftNote(baseTitle, finalText);
       }
     );
   } catch(e) {
@@ -837,6 +860,40 @@ async function createDraftNote(title, content) {
   } catch(e) {
     alert('メモの作成に失敗しました: ' + e.message);
   }
+}
+
+/* ── Duplicate a note as-is (title/content/tags/attachments), unpinned ──
+   Used from both the mobile swipe panel and the desktop editor toolbar. */
+async function duplicateNote(id) {
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  const newId = crypto.randomUUID();
+  const minOrder = notes.reduce((m, n) => Math.min(m, n.sort_order ?? 0), 0);
+  const updatedAt = new Date().toISOString();
+  try {
+    const { data, error } = await sb.from('notes').insert({
+      id: newId, user_id: uid,
+      title: note.title || '', content: note.content || '',
+      theme: [...(note.theme || [])], attachments: [...(note.attachments || [])],
+      pinned: false, folder_id: note.folder_id || null,
+      sort_order: minOrder - 1, updated_at: updatedAt, last_writer_session: sessionId
+    }).select().single();
+    if (error) throw error;
+    notes.unshift(data);
+    renderThemes();
+    renderGrid();
+    return data;
+  } catch(e) {
+    alert('複製に失敗しました: ' + e.message);
+  }
+}
+
+async function duplicateCurrentNote() {
+  if (!currentId || inTrash) return;
+  flushPendingSave();
+  await saveChain; // wait for any just-triggered/in-flight save to land before copying
+  const data = await duplicateNote(currentId);
+  if (data) openNote(data.id);
 }
 
 /* ── ⑤ Ask a question over the currently-filtered notes ── */
@@ -1676,7 +1733,9 @@ function tagsHtml(theme, max) {
   return theme.slice(0, max).map(t => '<span class="tag-chip">' + esc(t) + '</span>').join('');
 }
 function pinButtonHtml(n) {
-  return inTrash ? '' : '<button type="button" class="pin-btn' + (n.pinned ? ' active' : '') + '" title="ピン留め切替">📌</button>';
+  // On mobile, pinning is done via the swipe-actions panel instead of this
+  // top-right tap target, so it's omitted there.
+  return (inTrash || isMobileLayout()) ? '' : '<button type="button" class="pin-btn' + (n.pinned ? ' active' : '') + '" title="ピン留め切替">📌</button>';
 }
 function wireItemBehavior(item, n) {
   item.addEventListener('click', () => {
@@ -1689,7 +1748,10 @@ function wireItemBehavior(item, n) {
     }
     openNote(n.id);
   });
-  if (!inTrash) item.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+  if (!inTrash) {
+    const pinBtn = item.querySelector('.pin-btn');
+    if (pinBtn) pinBtn.addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+  }
 }
 
 /* ── Mobile: swipe a card/row left to reveal pin/delete actions ──
@@ -1697,7 +1759,7 @@ function wireItemBehavior(item, n) {
    moment a touch moves more than a few pixels in any direction, so it never
    fights with this for the same gesture. Only one item is open at a time;
    tapping anywhere else (handled in wireItemBehavior above) closes it. */
-const SWIPE_ACTIONS_WIDTH = 112;
+const SWIPE_ACTIONS_WIDTH = 168;
 let openSwipeItem = null;
 
 function closeOpenSwipe() {
@@ -1711,9 +1773,11 @@ function wireSwipeActions(wrap, item, n) {
   const actions = document.createElement('div');
   actions.className = 'swipe-actions';
   actions.innerHTML =
+    '<button type="button" class="swipe-btn swipe-dup" title="複製">📄</button>' +
     '<button type="button" class="swipe-btn swipe-pin" title="ピン留め切替">📌</button>' +
     '<button type="button" class="swipe-btn swipe-del" title="削除">🗑</button>';
   wrap.appendChild(actions);
+  actions.querySelector('.swipe-dup').addEventListener('click', e => { e.stopPropagation(); closeOpenSwipe(); duplicateNote(n.id); });
   actions.querySelector('.swipe-pin').addEventListener('click', e => { e.stopPropagation(); closeOpenSwipe(); togglePin(n.id); });
   actions.querySelector('.swipe-del').addEventListener('click', e => { e.stopPropagation(); closeOpenSwipe(); swipeDeleteNote(n.id); });
 
@@ -2040,6 +2104,7 @@ function openNote(id) {
   document.getElementById('btn-del').style.display = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display = inTrash ? '' : 'none';
   document.getElementById('btn-preview').style.display = inTrash ? 'none' : '';
+  document.getElementById('btn-duplicate').style.display = inTrash ? 'none' : '';
 
   currentTags = pending ? [...(pending.theme || [])] : [...(note.theme || [])];
   document.getElementById('e-tag-input').value = '';
@@ -2427,6 +2492,8 @@ async function toggleTrash() {
   activeFolder = FOLDER_ALL;
   document.getElementById('search-input').value    = '';
   document.getElementById('mob-search-input').value = '';
+  document.getElementById('s-search-wrap').classList.remove('has-text');
+  document.getElementById('mob-search-wrap').classList.remove('has-text');
   document.getElementById('s-label').textContent   = inTrash ? 'ゴミ箱' : 'Tomoya Memo';
   syncMobTitle();
   document.getElementById('new-btn').style.display = inTrash ? 'none' : 'flex';
@@ -2452,7 +2519,14 @@ function onSearch(v) {
   const d = document.getElementById('search-input'), m = document.getElementById('mob-search-input');
   if (d && d.value !== v) d.value = v;
   if (m && m.value !== v) m.value = v;
+  document.getElementById('s-search-wrap').classList.toggle('has-text', !!v);
+  document.getElementById('mob-search-wrap').classList.toggle('has-text', !!v);
   renderGrid();
+}
+
+function clearSearch() {
+  onSearch('');
+  (isMobileLayout() ? document.getElementById('mob-search-input') : document.getElementById('search-input')).focus();
 }
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
