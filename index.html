@@ -307,6 +307,29 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row-tags { display: flex; gap: 4px; flex-shrink: 0; }
 .row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; width: 60px; text-align: right; }
 
+/* Mobile: swipe a card/row left to reveal pin/delete actions in the space
+   it vacates. The wrapper clips the card and holds the actions panel
+   underneath; the card itself is what actually translates. */
+.swipe-wrap { position: relative; overflow: hidden; border-radius: 10px; }
+.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 112px; display: flex; }
+.swipe-btn { flex: 1; border: none; font-size: 18px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.swipe-btn.swipe-pin { background: var(--amber); }
+.swipe-btn.swipe-del { background: var(--red); }
+.swipe-wrap .card { position: relative; z-index: 1; }
+.swipe-wrap .row { position: relative; z-index: 1; background: var(--bg); }
+
+/* Undo toast for a swipe-delete — the delete itself only commits to the
+   server once this closes without "元に戻す" being tapped. */
+#undo-toast {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translate(-50%, 12px);
+  background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 13px;
+  padding: 10px 10px 10px 16px; border-radius: 100px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 90; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s;
+}
+#undo-toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#undo-toast button { background: none; border: none; color: inherit; font-family: var(--mono); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 100px; }
+#undo-toast button:hover { background: rgba(255,255,255,.15); }
+
 /* Mobile top bar / search / tags (hidden on desktop) */
 #mob-topbar { display: none; }
 #mob-search { display: none; }
@@ -334,7 +357,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #e-body.preview-mode #e-input { display: none; }
   #e-body.preview-mode #e-preview { display: block; width: 100%; border-left: none; }
   #grid { padding: 12px; }
-  .group-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .group-grid { grid-template-columns: 1fr; gap: 10px; }
   .card { height: 140px; }
   .row-title { width: auto; flex: 1; }
   .row-body { display: none; }
@@ -491,6 +514,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
     </div>
   </div>
+</div>
+
+<div id="undo-toast">
+  <span id="undo-toast-msg">削除しました</span>
+  <button type="button" onclick="undoPendingDelete()">元に戻す</button>
 </div>
 
 <div id="dialog-bg">
@@ -1498,6 +1526,7 @@ function renderGrid() {
   el.classList.toggle('list-mode', viewMode === 'list');
   el.classList.toggle('title-only', cardPreviewMode === 'title');
   el.innerHTML = '';
+  openSwipeItem = null; // its DOM node is about to be discarded — drop the stale reference
 
   if (inTrash) {
     const show = getSorted();
@@ -1556,6 +1585,14 @@ function fillItems(wrap, items, isPinnedGroup) {
   items.forEach(n => {
     const item = viewMode === 'list' ? buildRow(n) : buildCard(n);
     wireDrag(item, n);
+    if (isMobileLayout() && !inTrash) {
+      const swipeWrap = document.createElement('div');
+      swipeWrap.className = 'swipe-wrap';
+      swipeWrap.appendChild(item);
+      wireSwipeActions(swipeWrap, item, n);
+      wrap.appendChild(swipeWrap);
+      return;
+    }
     wrap.appendChild(item);
   });
 }
@@ -1579,8 +1616,129 @@ function pinButtonHtml(n) {
   return inTrash ? '' : '<button type="button" class="pin-btn' + (n.pinned ? ' active' : '') + '" title="ピン留め切替">📌</button>';
 }
 function wireItemBehavior(item, n) {
-  item.addEventListener('click', () => { if (dragMoved) { dragMoved = false; return; } openNote(n.id); });
+  item.addEventListener('click', () => {
+    if (dragMoved) { dragMoved = false; return; }
+    if (openSwipeItem) {
+      // A swiped-open row is showing its actions — the first tap anywhere
+      // just closes it, whether that's the open row itself or a different one.
+      closeOpenSwipe();
+      return;
+    }
+    openNote(n.id);
+  });
   if (!inTrash) item.querySelector('.pin-btn').addEventListener('click', e => { e.stopPropagation(); togglePin(n.id); });
+}
+
+/* ── Mobile: swipe a card/row left to reveal pin/delete actions ──
+   The long-press drag-to-folder gesture above already cancels itself the
+   moment a touch moves more than a few pixels in any direction, so it never
+   fights with this for the same gesture. Only one item is open at a time;
+   tapping anywhere else (handled in wireItemBehavior above) closes it. */
+const SWIPE_ACTIONS_WIDTH = 112;
+let openSwipeItem = null;
+
+function closeOpenSwipe() {
+  if (!openSwipeItem) return;
+  openSwipeItem.style.transition = 'transform .18s ease';
+  openSwipeItem.style.transform = '';
+  openSwipeItem = null;
+}
+
+function wireSwipeActions(wrap, item, n) {
+  const actions = document.createElement('div');
+  actions.className = 'swipe-actions';
+  actions.innerHTML =
+    '<button type="button" class="swipe-btn swipe-pin" title="ピン留め切替">📌</button>' +
+    '<button type="button" class="swipe-btn swipe-del" title="削除">🗑</button>';
+  wrap.appendChild(actions);
+  actions.querySelector('.swipe-pin').addEventListener('click', e => { e.stopPropagation(); closeOpenSwipe(); togglePin(n.id); });
+  actions.querySelector('.swipe-del').addEventListener('click', e => { e.stopPropagation(); closeOpenSwipe(); swipeDeleteNote(n.id); });
+
+  let startX = 0, startY = 0, baseX = 0, currentX = 0, axis = null;
+
+  item.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    baseX = (openSwipeItem === item) ? -SWIPE_ACTIONS_WIDTH : 0;
+    currentX = baseX;
+    axis = null;
+    item.style.transition = 'none';
+  }, { passive: true });
+
+  item.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (axis === null) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis === 'x' && openSwipeItem && openSwipeItem !== item) closeOpenSwipe();
+    }
+    if (axis !== 'x') return;
+    e.preventDefault(); // only once we're sure this is our horizontal gesture, not a page scroll
+    currentX = Math.max(-SWIPE_ACTIONS_WIDTH, Math.min(0, baseX + dx));
+    item.style.transform = 'translateX(' + currentX + 'px)';
+  }, { passive: false });
+
+  function finishSwipe() {
+    if (axis !== 'x') return;
+    axis = null;
+    item.style.transition = 'transform .18s ease';
+    const shouldOpen = currentX < -SWIPE_ACTIONS_WIDTH / 2;
+    item.style.transform = shouldOpen ? 'translateX(-' + SWIPE_ACTIONS_WIDTH + 'px)' : '';
+    openSwipeItem = shouldOpen ? item : null;
+  }
+  item.addEventListener('touchend', finishSwipe);
+  item.addEventListener('touchcancel', finishSwipe);
+}
+
+/* Swipe-delete skips the confirmation dialog — it's undoable instead. The
+   note leaves the list immediately and only actually gets written to the
+   trash table (same as the normal delete flow) once the undo toast times
+   out without "元に戻す" being tapped. */
+let pendingDelete = null; // { note, index, timer }
+
+async function commitPendingDelete() {
+  if (!pendingDelete) return;
+  const { note, timer } = pendingDelete;
+  clearTimeout(timer); // matters when this runs early (a new swipe-delete forced it) — otherwise
+  pendingDelete = null; // this note's own timer would still be sitting there, and firing later
+  try {                  // would wrongly commit whatever note is pending *by then*
+    await sb.from('trash').insert({ user_id: uid, title: note.title || '', content: note.content || '', deleted_at: new Date().toISOString() });
+    await sb.from('notes').delete().eq('id', note.id);
+  } catch(e) { console.error('swipe delete commit failed', e); }
+}
+
+function swipeDeleteNote(id) {
+  const idx = notes.findIndex(n => n.id === id);
+  if (idx < 0) return;
+  commitPendingDelete(); // an earlier still-pending delete simply becomes final now
+  const [note] = notes.splice(idx, 1);
+  renderGrid();
+  pendingDelete = { note, index: idx, timer: setTimeout(commitPendingDelete, 2000) };
+  showUndoToast();
+}
+
+function undoPendingDelete() {
+  if (!pendingDelete) return;
+  clearTimeout(pendingDelete.timer);
+  const { note, index } = pendingDelete;
+  pendingDelete = null;
+  notes.splice(Math.min(index, notes.length), 0, note);
+  renderGrid();
+  hideUndoToast();
+}
+
+let undoToastTimer = null;
+function showUndoToast() {
+  clearTimeout(undoToastTimer);
+  document.getElementById('undo-toast').classList.add('show');
+  undoToastTimer = setTimeout(hideUndoToast, 2000);
+}
+function hideUndoToast() {
+  clearTimeout(undoToastTimer);
+  document.getElementById('undo-toast').classList.remove('show');
 }
 
 function attachBadgeHtml(attachments) {
