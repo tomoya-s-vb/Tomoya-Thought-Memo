@@ -225,6 +225,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .ebtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 .ebtn.del:hover { background: var(--redbg); color: var(--red); border-color: var(--redbg); }
 .ebtn.res:hover { background: var(--greenbg); color: var(--green); border-color: var(--greenbg); }
+.ebtn-label { margin-left: 4px; }
 
 #e-body { flex: 1; display: flex; overflow: hidden; }
 #e-input {
@@ -396,6 +397,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #btn-duplicate { order: 4; }
   #btn-organize { order: 5; }
   #btn-del, #btn-res { order: 6; }
+  /* Action buttons show only their emoji here (label hidden) so all of them
+     plus the back button fit on one row without wrapping to a 2nd line. */
+  .ebtn-label { display: none; }
+  .ebtn { padding: 5px 8px; font-size: 15px; }
   #e-title { order: 7; flex-basis: 100%; }
   #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
   #e-charcount { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
@@ -508,12 +513,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
         <span id="e-charcount">0字</span>
-        <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">集中モード</button>
-        <button class="ebtn" id="btn-preview" onclick="togglePreview()">プレビュー</button>
-        <button class="ebtn" id="btn-duplicate" onclick="duplicateCurrentNote()" title="複製">複製</button>
-        <button class="ebtn" id="btn-organize" onclick="organizeNote()">✨整理</button>
-        <button class="ebtn del" id="btn-del" onclick="askDelete()">削除</button>
-        <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none">復元</button>
+        <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">🎯<span class="ebtn-label">集中モード</span></button>
+        <button class="ebtn" id="btn-preview" onclick="togglePreview()" title="プレビュー">👁️<span class="ebtn-label">プレビュー</span></button>
+        <button class="ebtn" id="btn-duplicate" onclick="duplicateCurrentNote()" title="複製">📄<span class="ebtn-label">複製</span></button>
+        <button class="ebtn" id="btn-organize" onclick="organizeNote()" title="整理">✨<span class="ebtn-label">整理</span></button>
+        <button class="ebtn del" id="btn-del" onclick="askDelete()" title="削除">🗑️<span class="ebtn-label">削除</span></button>
+        <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none" title="復元">♻️<span class="ebtn-label">復元</span></button>
       </div>
       <div id="e-folder-row">
         <span id="e-folder-icon">📁</span>
@@ -769,8 +774,8 @@ async function organizeNote() {
   try { localStorage.setItem('organizeTargetChars', lenInput.trim()); } catch(e) {}
 
   const btn = document.getElementById('btn-organize');
-  const original = btn.textContent;
-  btn.disabled = true; btn.textContent = '整理中…';
+  const original = btn.innerHTML; // preserve the emoji + <span class="ebtn-label"> structure
+  btn.disabled = true; btn.innerHTML = '整理中…';
   try {
     const data = await callClaude('organize', { text, targetChars });
     openAIDialog(
@@ -785,7 +790,7 @@ async function organizeNote() {
   } catch(e) {
     alert('整理に失敗しました: ' + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = original;
+    btn.disabled = false; btn.innerHTML = original;
   }
 }
 
