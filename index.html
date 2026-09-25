@@ -137,52 +137,22 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 /* Main */
 #main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position:relative; border-left: 1px solid var(--border); }
 
-/* Grid of cards */
-#grid-wrap { flex:1; overflow-y:auto; scrollbar-gutter: stable; }
-#grid { padding: 18px; }
+/* List of notes (the only layout now — the old card-grid view was removed) */
+#grid-wrap { flex:1; overflow-y:auto; overflow-x: hidden; scrollbar-gutter: stable; }
+#grid { padding: 0; display: flex; flex-direction: column; }
 .group-section + .group-section { margin-top: 6px; }
-.group-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 0 2px 10px; }
-.group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-content: start; margin-bottom: 22px; }
+.group-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 0 2px 10px; margin: 0 18px; }
 .group-list { margin-bottom: 10px; }
-.group-grid.group-empty { min-height: 56px; }
-.empty-hint { grid-column: 1/-1; border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; font-size: 12px; color: var(--text3); }
-.empty-msg { padding: 40px 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); grid-column: 1/-1; }
+.empty-hint { border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; font-size: 12px; color: var(--text3); margin: 0 18px; }
+.empty-msg { padding: 40px 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); }
 
-.card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  padding: 13px 15px; height: 140px; display: flex; flex-direction: column;
-  cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .1s; position: relative;
-  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-}
-.card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.07); border-color: var(--text3); }
-.card.trashed { opacity: .6; }
-.card.dragging { opacity: .35; transform: scale(.97); }
-.card.drag-enabled { cursor: grab; touch-action: pan-y; }
-.card.drop-before { box-shadow: -3px 0 0 var(--green) inset; }
-.card.drop-after  { box-shadow:  3px 0 0 var(--green) inset; }
-.card-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:40px; margin-bottom: 6px; }
-.card-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.65; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word; }
-.card-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; margin-top: 8px; }
-#grid.title-only .card { height: auto; min-height: 0; padding: 11px 15px; }
-#grid.title-only .card-title { margin-bottom: 0; padding-right: 70px; }
-#grid.title-only .card-body { display: none; }
-#grid.title-only .card-footer { display: none; }
-#grid.title-only .card-date-inline { display: block; }
-#grid.title-only .row-body { display: none; }
-.card-date-inline { display: none; position: absolute; top: 10px; right: 34px; font-size: 10px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
-.card-tags { display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; max-height: 19px; }
-.tag-chip { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
-.attach-badge { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
-.card-date { font-size: 10px; font-family: var(--mono); color: var(--text3); white-space: nowrap; flex-shrink:0; }
+.attach-badge { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
 
 .pin-btn { width: 20px; height: 20px; border: none; background: none; padding: 0; cursor: pointer; font-size: 12px; opacity: .25; filter: grayscale(1); transition: .15s; flex-shrink: 0; }
 .pin-btn:hover { opacity: .7; }
 .pin-btn.active { opacity: 1; filter: none; }
-.card .pin-btn { position: absolute; top: 8px; right: 9px; }
-.card.current-editing { border-color: var(--amber); }
 .row.current-editing { box-shadow: inset 3px 0 0 var(--amber); background: var(--amberbg); }
 .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
-.card .pending-dot { position: absolute; top: 12px; left: 12px; }
 
 /* Editor: permanent center pane on desktop (mobile media query below turns
    this back into a full-screen overlay, matching how it behaves on phones) */
@@ -206,6 +176,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-tags-row { padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
 #e-tags-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 #e-tags-chips:empty { margin-bottom: 0; }
+.tag-chip { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; }
 .tag-chip.removable { display: inline-flex; align-items: center; gap: 4px; }
 .tag-chip.removable button { background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; padding: 0; line-height: 1; }
 .tag-chip.removable button:hover { color: var(--red); }
@@ -297,10 +268,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .hbtn-wide:disabled:hover { background: none; }
 #mob-synth-row { padding: 8px 16px; border-bottom: 1px solid var(--border); display: none; }
 
-/* List view (alternative to card grid) */
-#grid.list-mode { display: flex; flex-direction: column; gap: 0; padding: 0; }
 .row {
-  display: flex; align-items: center; gap: 12px; padding: 11px 18px;
+  display: flex; align-items: center; gap: 10px; padding: 11px 18px;
   border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
@@ -310,21 +279,26 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row.drag-enabled { touch-action: pan-y; }
 .row.drop-before { box-shadow: 0 -3px 0 var(--green) inset; }
 .row.drop-after  { box-shadow: 0  3px 0 var(--green) inset; }
-.row-title { font-size: 13.5px; font-weight: 500; flex-shrink: 0; width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-body { flex: 1; font-size: 12.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-tags { display: flex; gap: 4px; flex-shrink: 0; }
-.row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; width: 60px; text-align: right; }
+/* row-main holds title (+ the optional preview line below it) and is the
+   only element that grows, so long titles get all the leftover space and
+   the row itself never has to grow wider than #grid-wrap (no more
+   horizontal scrollbar). min-width:0 is what actually makes a flex child
+   shrink/ellipsis instead of forcing the row wider than its container. */
+.row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-body { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#grid.title-only .row-body { display: none; }
+.row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; min-width: 56px; text-align: right; white-space: nowrap; }
 
-/* Mobile: swipe a card/row left to reveal pin/delete actions in the space
-   it vacates. The wrapper clips the card and holds the actions panel
-   underneath; the card itself is what actually translates. */
+/* Mobile: swipe a row left to reveal pin/duplicate/delete actions in the
+   space it vacates. The wrapper clips the row and holds the actions panel
+   underneath; the row itself is what actually translates. */
 .swipe-wrap { position: relative; overflow: hidden; border-radius: 10px; }
 .swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 168px; display: flex; }
 .swipe-btn { flex: 1; border: none; font-size: 18px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .swipe-btn.swipe-dup { background: var(--green); }
 .swipe-btn.swipe-pin { background: var(--amber); }
 .swipe-btn.swipe-del { background: var(--red); }
-.swipe-wrap .card { position: relative; z-index: 1; }
 .swipe-wrap .row { position: relative; z-index: 1; background: var(--bg); }
 
 /* Undo toast for a swipe-delete — the delete itself only commits to the
@@ -365,15 +339,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-folder-list .folder-chip.folder-drop-hover { outline: 2px solid var(--green); outline-offset: -2px; }
   #e-body.preview-mode #e-input { display: none; }
   #e-body.preview-mode #e-preview { display: block; width: 100%; border-left: none; }
-  #grid { padding: 12px; }
-  .group-grid { grid-template-columns: 1fr; gap: 10px; }
-  .card { height: 140px; }
-  .row-title { width: auto; flex: 1; }
+  /* Mobile always shows title-only density (regardless of the desktop
+     preview-mode setting) to keep rows compact on a small screen. */
   .row-body { display: none; }
-  /* No top-right pin button on mobile (pinning lives in the swipe panel now),
-     so the date badge and title no longer need to leave room for it. */
-  .card-date-inline { right: 10px; }
-  #grid.title-only .card-title { padding-right: 40px; }
 
   /* Editor: full-screen overlay on mobile (desktop keeps it as a permanent
      center pane — see the base #editor rule above the media queries) */
@@ -429,7 +397,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="s-head">
       <span id="s-label">Tomoya Memo</span>
       <div id="s-head-btns">
-        <button class="hbtn" id="view-btn" title="表示切替" onclick="toggleView()">▦</button>
         <div class="export-menu-wrap">
           <button class="hbtn" title="エクスポート" onclick="toggleExportMenu('export-menu')">⬇</button>
           <div id="export-menu" class="export-menu">
@@ -455,7 +422,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     </div>
     <div id="preview-row">
       <button class="sortbtn active" id="preview-title" onclick="setCardPreviewMode('title')">タイトルのみ</button>
-      <button class="sortbtn" id="preview-full" onclick="setCardPreviewMode('preview')">3行表示</button>
+      <button class="sortbtn" id="preview-full" onclick="setCardPreviewMode('preview')">中サイズ表示</button>
     </div>
     <div id="s-conn"><span class="dot"></span><span id="conn-label">接続確認中…</span></div>
     <div id="folder-label-row"><span>フォルダ</span></div>
@@ -477,7 +444,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <div id="mob-topbar">
       <button class="hbtn" id="mob-refresh-btn" title="再読み込み" onclick="hardRefresh()">⟳</button>
       <button class="hbtn" id="mob-trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
-      <button class="hbtn" id="mob-view-btn" title="表示切替" onclick="toggleView()">▦</button>
       <span id="mob-title">Tomoya Memo</span>
       <div class="export-menu-wrap">
         <button class="hbtn" title="エクスポート" onclick="toggleExportMenu('mob-export-menu')">⬇</button>
@@ -620,8 +586,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
 let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
-let cardPreviewMode = 'title'; // 'preview' (title + 3 lines) or 'title' (title only)
-let uid = null, viewMode = 'grid';
+let cardPreviewMode = 'title'; // 'preview' (title + short content snippet) or 'title' (title only)
+let uid = null;
 /* Identifies this one continuous page load — not persisted, so a reload gets
    a fresh id. Written alongside every save so a later conflict can tell
    "this exact browsing session made both versions" (a flaky connection
@@ -1602,18 +1568,6 @@ async function assignToFolder(id, folderId) {
   catch(e) { console.error('folder assign error', e); }
 }
 
-/* ── View mode (card grid / list) ── */
-function toggleView() {
-  viewMode = viewMode === 'grid' ? 'list' : 'grid';
-  const icon = viewMode === 'grid' ? '▦' : '☰';
-  const title = viewMode === 'grid' ? 'リスト表示に切替' : 'カード表示に切替';
-  document.getElementById('view-btn').textContent = icon;
-  document.getElementById('view-btn').title = title;
-  const mb = document.getElementById('mob-view-btn');
-  if (mb) { mb.textContent = icon; mb.title = title; }
-  renderGrid();
-}
-
 /* ── Grid ── */
 function getFiltered() {
   let list = inTrash ? trashList : notes.slice();
@@ -1648,7 +1602,6 @@ function getSorted() {
 function renderGrid() {
   updateSynthButtonState();
   const el = document.getElementById('grid');
-  el.classList.toggle('list-mode', viewMode === 'list');
   el.classList.toggle('title-only', cardPreviewMode === 'title');
   el.innerHTML = '';
   openSwipeItem = null; // its DOM node is about to be discarded — drop the stale reference
@@ -1657,7 +1610,6 @@ function renderGrid() {
     const show = getSorted();
     if (!show.length) { el.innerHTML = '<div class="empty-msg">ゴミ箱は空です</div>'; return; }
     const wrap = document.createElement('div');
-    wrap.className = viewMode === 'list' ? '' : 'group-grid';
     fillItems(wrap, show, false);
     el.appendChild(wrap);
     return;
@@ -1694,7 +1646,7 @@ function buildGroup(label, items, isPinnedGroup) {
   }
 
   const wrap = document.createElement('div');
-  wrap.className = viewMode === 'list' ? 'group-list' : 'group-grid';
+  wrap.className = 'group-list';
   wrap.dataset.pinnedGroup = isPinnedGroup ? '1' : '0';
   if (!items.length && isPinnedGroup) {
     wrap.classList.add('group-empty');
@@ -1708,7 +1660,7 @@ function buildGroup(label, items, isPinnedGroup) {
 
 function fillItems(wrap, items, isPinnedGroup) {
   items.forEach(n => {
-    const item = viewMode === 'list' ? buildRow(n) : buildCard(n);
+    const item = buildRow(n);
     wireDrag(item, n);
     if (isMobileLayout() && !inTrash) {
       const swipeWrap = document.createElement('div');
@@ -1722,8 +1674,8 @@ function fillItems(wrap, items, isPinnedGroup) {
   });
 }
 
-/* What buildCard/buildRow actually differ on is the DOM layout; everything
-   about "which content to show" and "how items behave" is shared here. */
+/* "Which content to show" (draft-aware) is shared by buildRow, pinButtonHtml,
+   and everything else that renders a note in the list. */
 function displayFieldsFor(n) {
   const pending = !inTrash ? loadPendingDraft(n.id) : null;
   return {
@@ -1733,9 +1685,6 @@ function displayFieldsFor(n) {
     theme: pending ? (pending.theme || []) : (n.theme || []),
     attachments: pending ? (pending.attachments || []) : (n.attachments || [])
   };
-}
-function tagsHtml(theme, max) {
-  return theme.slice(0, max).map(t => '<span class="tag-chip">' + esc(t) + '</span>').join('');
 }
 function pinButtonHtml(n) {
   // On mobile, pinning is done via the swipe-actions panel instead of this
@@ -1877,34 +1826,19 @@ function attachBadgeHtml(attachments) {
   return (attachments && attachments.length) ? '<span class="attach-badge" title="添付ファイルあり">📎' + attachments.length + '</span>' : '';
 }
 
-function buildCard(n) {
-  const { pending, title, content, theme, attachments } = displayFieldsFor(n);
-  const card = document.createElement('div');
-  card.className = 'card' + (inTrash ? ' trashed' : '');
-  card.dataset.id = n.id;
-  card.innerHTML =
-    pinButtonHtml(n) +
-    '<span class="card-date-inline">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</span>' +
-    (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
-    '<div class="card-title">' + esc(title || '無題のメモ') + '</div>' +
-    '<div class="card-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="card-footer"><div class="card-tags">' + tagsHtml(theme, 3) + attachBadgeHtml(attachments) + '</div>' +
-    '<div class="card-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div></div>';
-  wireItemBehavior(card, n);
-  return card;
-}
-
 function buildRow(n) {
-  const { pending, title, content, theme, attachments } = displayFieldsFor(n);
+  const { pending, title, content, attachments } = displayFieldsFor(n);
   const row = document.createElement('div');
   row.className = 'row' + (inTrash ? ' trashed' : '');
   row.dataset.id = n.id;
   row.innerHTML =
     pinButtonHtml(n) +
     (pending ? '<span class="pending-dot" title="未送信の変更があります"></span>' : '') +
-    '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
-    '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
-    '<div class="row-tags">' + tagsHtml(theme, 2) + attachBadgeHtml(attachments) + '</div>' +
+    '<div class="row-main">' +
+      '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
+      '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
+    '</div>' +
+    attachBadgeHtml(attachments) +
     '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
   wireItemBehavior(row, n);
   return row;
@@ -1999,13 +1933,13 @@ function clearDropVisuals() {
 
 function nextDragItem(item) {
   let sib = item.nextElementSibling;
-  while (sib && !(sib.classList.contains('card') || sib.classList.contains('row'))) sib = sib.nextElementSibling;
+  while (sib && !sib.classList.contains('row')) sib = sib.nextElementSibling;
   return sib;
 }
 
 function prevDragItem(item) {
   let sib = item.previousElementSibling;
-  while (sib && !(sib.classList.contains('card') || sib.classList.contains('row'))) sib = sib.previousElementSibling;
+  while (sib && !sib.classList.contains('row')) sib = sib.previousElementSibling;
   return sib;
 }
 
@@ -2024,15 +1958,12 @@ function updateDropTarget(x, y, sourceItem) {
   // Mobile has no manual reordering — dragging there is only for filing into a folder.
   if (isMobileLayout()) { ptrDrag.target = null; return; }
 
-  const item = el && el.closest('.card,.row');
+  const item = el && el.closest('.row');
 
   if (item && item !== sourceItem) {
     const rect = item.getBoundingClientRect();
-    const horizontal = viewMode !== 'list';
-    const side = horizontal
-      ? ((x - rect.left) > rect.width / 2 ? 'after' : 'before')
-      : ((y - rect.top)  > rect.height / 2 ? 'after' : 'before');
-    ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-grid,.group-list').dataset.pinnedGroup === '1' };
+    const side = (y - rect.top) > rect.height / 2 ? 'after' : 'before';
+    ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-list').dataset.pinnedGroup === '1' };
 
     // Highlight both sides of the gap the note will drop into: the trailing
     // edge of the item before the gap, and the leading edge of the item after it.
@@ -2044,7 +1975,7 @@ function updateDropTarget(x, y, sourceItem) {
   }
 
   // Not over an item — check whether we're over a group's empty space (append to end)
-  const group = el && el.closest('.group-grid,.group-list');
+  const group = el && el.closest('.group-list');
   ptrDrag.target = group ? { id: null, side: null, pinnedGroup: group.dataset.pinnedGroup === '1' } : null;
 }
 
