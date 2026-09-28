@@ -13,10 +13,8 @@
 <link rel="preconnect" href="https://itvumfppblhirvbuynwt.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -146,8 +144,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .empty-hint { border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; font-size: 12px; color: var(--text3); margin: 0 18px; }
 .empty-msg { padding: 40px 20px; font-size: 13px; color: var(--text3); text-align: center; font-family: var(--mono); }
 
-.attach-badge { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 100px; background: var(--soft); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
-
 .pin-btn { width: 20px; height: 20px; border: none; background: none; padding: 0; cursor: pointer; font-size: 12px; opacity: .25; filter: grayscale(1); transition: .15s; flex-shrink: 0; }
 .pin-btn:hover { opacity: .7; }
 .pin-btn.active { opacity: 1; filter: none; }
@@ -205,28 +201,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   color: var(--text); outline: none; overflow-y: auto;
 }
 #e-input::placeholder { color: var(--text3); }
-#e-preview {
-  flex: 1; padding: 20px 24px; overflow-y: auto; font-size: 14px; line-height: 1.85;
-  font-weight: 300; border-left: 1px solid var(--border); display: none;
-}
-#e-preview h1 { font-size: 1.6em; font-weight: 500; margin: .4em 0 .3em; padding-bottom: .2em; border-bottom: 1px solid var(--border); line-height: 1.3; }
-#e-preview h2 { font-size: 1.3em; font-weight: 500; margin: .6em 0 .2em; line-height: 1.3; }
-#e-preview h3 { font-size: 1.1em; font-weight: 500; margin: .5em 0 .2em; }
-#e-preview p { margin: .35em 0; }
-#e-preview ul, #e-preview ol { padding-left: 1.4em; margin: .3em 0; }
-#e-preview li { margin: .1em 0; }
-#e-preview strong { font-weight: 500; }
-#e-preview img { max-width: 100%; border-radius: 8px; display: block; margin: 6px 0; }
-#e-preview em { font-style: italic; }
-#e-preview code { font-family: var(--mono); font-size: .87em; background: var(--soft); padding: .1em .35em; border-radius: 4px; }
-#e-preview pre { background: var(--soft); padding: .8em 1em; border-radius: 6px; margin: .4em 0; overflow-x: auto; }
-#e-preview pre code { background: none; padding: 0; }
-#e-preview blockquote { border-left: 3px solid var(--border); padding-left: .8em; color: var(--text2); margin: .4em 0; }
-#e-preview a { color: var(--green); }
-#e-preview hr { border: none; border-top: 1px solid var(--border); margin: .6em 0; }
-#e-preview table { border-collapse: collapse; width: 100%; font-size: 13px; margin: .4em 0; }
-#e-preview th, #e-preview td { border: 1px solid var(--border); padding: 5px 9px; }
-#e-preview th { background: var(--soft); font-weight: 500; }
 
 /* Dialog */
 #dialog-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; }
@@ -259,6 +233,22 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #ai-answer-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; margin-bottom: 14px; }
 #ai-answer-refs .ref-chip { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); cursor: pointer; }
 #ai-answer-refs .ref-chip:hover { background: var(--soft); }
+
+/* Links popup — replaces the old side-by-side preview mode. Extracts every
+   URL in the note (see extractLinks()) with the line above it as context,
+   since that's the only part of "preview" actually used day to day. */
+#links-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; padding: 20px; }
+#links-bg.show { display: flex; }
+#links-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto; }
+#links-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+#links-head span { font-size: 14px; font-weight: 500; }
+#links-head button { border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
+#links-body { display: flex; flex-direction: column; gap: 14px; }
+.link-item + .link-item { padding-top: 14px; border-top: 1px solid var(--border); }
+.link-item-desc { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-bottom: 5px; white-space: pre-wrap; word-break: break-word; }
+.link-item-url { display: inline-block; color: var(--green); font-size: 13px; line-height: 1.5; word-break: break-all; }
+.link-item-url:hover { text-decoration: underline; }
+.links-empty { font-size: 13px; color: var(--text3); text-align: center; padding: 16px 0; }
 
 /* Shared full-width sidebar action button (synthesize) */
 #synth-row, #mob-synth-row { padding: 4px 10px 12px; }
@@ -337,10 +327,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #mob-folder-list .folder-chip { flex-shrink: 0; font-size: 11px; font-family: var(--mono); padding: 4px 10px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); white-space: nowrap; }
   #mob-folder-list .folder-chip.active { background: var(--amberbg); color: var(--amber); border-color: var(--amberbg); }
   #mob-folder-list .folder-chip.folder-drop-hover { outline: 2px solid var(--green); outline-offset: -2px; }
-  #e-body.preview-mode #e-input { display: none; }
-  #e-body.preview-mode #e-preview { display: block; width: 100%; border-left: none; }
   /* Mobile always shows title-only density (regardless of the desktop
-     preview-mode setting) to keep rows compact on a small screen. */
+     list-density setting) to keep rows compact on a small screen. */
   .row-body { display: none; }
 
   /* Editor: full-screen overlay on mobile (desktop keeps it as a permanent
@@ -355,13 +343,13 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Toolbar: back+preview+delete pinned on row 1, title on its own row 2 —
-     this way "保存済み" appearing never pushes preview/delete out of place,
-     and delete sits away from the back button so it's harder to mis-tap. */
+  /* Toolbar: back+links+delete pinned on row 1, title on its own row 2 —
+     this way "保存済み" appearing never pushes them out of place, and delete
+     sits away from the back button so it's harder to mis-tap. */
   #e-bar { position: relative; }
   #e-back { display: flex; order: 1; }
   #btn-focus { order: 2; margin-left: auto; }
-  #btn-preview { order: 3; }
+  #btn-links { order: 3; }
   #btn-duplicate { order: 4; }
   #btn-organize { order: 5; }
   #btn-del, #btn-res { order: 6; }
@@ -480,7 +468,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <span id="e-status"></span>
         <span id="e-charcount">0字</span>
         <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">🎯<span class="ebtn-label">集中モード</span></button>
-        <button class="ebtn" id="btn-preview" onclick="togglePreview()" title="プレビュー">👁️<span class="ebtn-label">プレビュー</span></button>
+        <button class="ebtn" id="btn-links" onclick="showLinksPopup()" title="リンク">🔗<span class="ebtn-label">リンク</span></button>
         <button class="ebtn" id="btn-duplicate" onclick="duplicateCurrentNote()" title="複製">📄<span class="ebtn-label">複製</span></button>
         <button class="ebtn" id="btn-organize" onclick="organizeNote()" title="整理">✨<span class="ebtn-label">整理</span></button>
         <button class="ebtn del" id="btn-del" onclick="askDelete()" title="削除">🗑️<span class="ebtn-label">削除</span></button>
@@ -499,9 +487,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
       <div id="e-body">
         <textarea id="e-input"
-          placeholder="ここにメモを書いてください…&#10;&#10;マークダウン記法も使えます：&#10;# 見出し1  ## 見出し2&#10;**太字**  *斜体*  `コード`&#10;- リスト項目"
-          oninput="onEdit(); updatePreview(); updateCharCount()"></textarea>
-        <div id="e-preview"></div>
+          placeholder="ここにメモを書いてください…"
+          oninput="onEdit(); updateCharCount()"></textarea>
       </div>
     </div>
   </div>
@@ -550,6 +537,16 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   </div>
 </div>
 
+<div id="links-bg">
+  <div id="links-panel">
+    <div id="links-head">
+      <span>🔗 メモ内のリンク</span>
+      <button onclick="closeLinksPopup()">✕</button>
+    </div>
+    <div id="links-body"></div>
+  </div>
+</div>
+
 <script>
 /* ── Script map ──
    Auth & boot ............. login, session, initial data load, realtime wiring
@@ -574,18 +571,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* Auto-linked URLs in the preview pane always open in a new tab (target=_blank),
-   so reading a note never navigates the app itself away. On mobile, a real <a>
-   also gets Safari's native long-press "Open / Share" menu automatically. */
-{
-  const linkRenderer = new marked.Renderer();
-  const originalLink = linkRenderer.link.bind(linkRenderer);
-  linkRenderer.link = (href, title, text) => originalLink(href, title, text).replace('<a ', '<a target="_blank" rel="noopener noreferrer" ');
-  marked.use({ renderer: linkRenderer });
-}
-
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
-let query = '', showPreview = false, sortMode = 'manual', activeTheme = null, dragMoved = false;
+let query = '', sortMode = 'manual', activeTheme = null, dragMoved = false;
 let cardPreviewMode = 'title'; // 'preview' (title + short content snippet) or 'title' (title only)
 let uid = null;
 /* Identifies this one continuous page load — not persisted, so a reload gets
@@ -833,7 +820,7 @@ async function createDraftNote(title, content) {
   }
 }
 
-/* ── Duplicate a note as-is (title/content/tags/attachments), unpinned ──
+/* ── Duplicate a note as-is (title/content/tags), unpinned ──
    Used from both the mobile swipe panel and the desktop editor toolbar. */
 async function duplicateNote(id) {
   const note = notes.find(n => n.id === id);
@@ -845,7 +832,7 @@ async function duplicateNote(id) {
     const { data, error } = await sb.from('notes').insert({
       id: newId, user_id: uid,
       title: note.title || '', content: note.content || '',
-      theme: [...(note.theme || [])], attachments: [...(note.attachments || [])],
+      theme: [...(note.theme || [])],
       pinned: false, folder_id: note.folder_id || null,
       sort_order: minOrder - 1, updated_at: updatedAt, last_writer_session: sessionId
     }).select().single();
@@ -947,7 +934,7 @@ async function boot() {
     // instead of the sum of all three. Purely a timing change — none of
     // this touches how data is written or reconciled.
     const [notesResult] = await Promise.all([
-      sb.from('notes').select('id,title,content,theme,attachments,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false }),
+      sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false }),
       loadSettings(),
       refreshFolders()
     ]);
@@ -1029,7 +1016,7 @@ function applyRealtimeNoteChange(payload) {
    day-to-day sync goes through applyRealtimeNoteChange above instead. */
 async function refreshQuietly() {
   try {
-    const { data, error } = await sb.from('notes').select('id,title,content,theme,attachments,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('notes').select('id,title,content,theme,sort_order,updated_at,pinned,folder_id').order('updated_at', { ascending: false });
     if (error) throw error;
     // Same reasoning as the DELETE case above: don't let a note mid-flight in
     // a swipe-delete's undo window get pulled back in by this refresh.
@@ -1069,7 +1056,6 @@ function draftFor(id, type, fields) {
   return {
     type,
     title: fields.title, content: fields.content, theme: fields.theme,
-    attachments: fields.attachments,
     baseUpdatedAt: editBaseUpdatedAt,
     sort_order: localNote ? localNote.sort_order : 0,
     pinned: localNote ? !!localNote.pinned : false,
@@ -1086,7 +1072,7 @@ async function attemptSyncNote(id, fields, opts) {
   if (opts.isNew) {
     const { data, error } = await sb.from('notes').insert({
       id, user_id: uid, title: fields.title, content: fields.content, theme: fields.theme,
-      attachments: fields.attachments || [], last_writer_session: sessionId,
+      last_writer_session: sessionId,
       pinned: !!opts.pinned, folder_id: opts.folderId || null, sort_order: opts.sort_order, updated_at: new Date().toISOString()
     }).select().single();
     if (error) throw error;
@@ -1134,7 +1120,7 @@ async function attemptSyncNote(id, fields, opts) {
     const { data: copy, error: copyErr } = await sb.from('notes').insert({
       user_id: uid,
       title: (fields.title || '無題のメモ') + '(競合コピー)',
-      content: fields.content, theme: fields.theme, attachments: fields.attachments || [], last_writer_session: sessionId,
+      content: fields.content, theme: fields.theme, last_writer_session: sessionId,
       sort_order: minOrder - 1, updated_at: new Date().toISOString()
     }).select().single();
     if (copyErr) throw copyErr;
@@ -1168,7 +1154,7 @@ async function flushPendingEdits() {
 async function flushOneDraft(id, draft) {
   return enqueueSave(async () => {
     try {
-      const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme, attachments: draft.attachments }, {
+      const result = await attemptSyncNote(id, { title: draft.title, content: draft.content, theme: draft.theme }, {
         isNew: draft.type === 'create',
         baseUpdatedAt: draft.baseUpdatedAt,
         sort_order: draft.sort_order,
@@ -1202,8 +1188,6 @@ function refreshOpenEditorIfIdle() {
   document.getElementById('e-input').value = note.content || '';
   currentTags = [...(note.theme || [])];
   renderTagChips();
-  currentAttachments = [...(note.attachments || [])];
-  updatePreview();
   updateCharCount();
   editBaseUpdatedAt = note.updated_at; // we're now showing the latest — no conflict against this version
 }
@@ -1682,8 +1666,7 @@ function displayFieldsFor(n) {
     pending,
     title: pending ? pending.title : n.title,
     content: pending ? pending.content : n.content,
-    theme: pending ? (pending.theme || []) : (n.theme || []),
-    attachments: pending ? (pending.attachments || []) : (n.attachments || [])
+    theme: pending ? (pending.theme || []) : (n.theme || [])
   };
 }
 function pinButtonHtml(n) {
@@ -1822,12 +1805,8 @@ function hideUndoToast() {
   document.getElementById('undo-toast').classList.remove('show');
 }
 
-function attachBadgeHtml(attachments) {
-  return (attachments && attachments.length) ? '<span class="attach-badge" title="添付ファイルあり">📎' + attachments.length + '</span>' : '';
-}
-
 function buildRow(n) {
-  const { pending, title, content, attachments } = displayFieldsFor(n);
+  const { pending, title, content } = displayFieldsFor(n);
   const row = document.createElement('div');
   row.className = 'row' + (inTrash ? ' trashed' : '');
   row.dataset.id = n.id;
@@ -1838,7 +1817,6 @@ function buildRow(n) {
       '<div class="row-title">' + esc(title || '無題のメモ') + '</div>' +
       '<div class="row-body">' + esc((content || '').replace(/[#*`>]/g,'')) + '</div>' +
     '</div>' +
-    attachBadgeHtml(attachments) +
     '<div class="row-date">' + (inTrash ? rel(n.deleted_at) : rel(n.updated_at)) + '</div>';
   wireItemBehavior(row, n);
   return row;
@@ -2018,7 +1996,6 @@ function syncMobTitle() { document.getElementById('mob-title').textContent = doc
 
 /* ── Open note / editor ── */
 let currentTags = [];
-let currentAttachments = [];
 let editBaseUpdatedAt = null;
 
 function openNote(id) {
@@ -2039,7 +2016,7 @@ function openNote(id) {
   document.getElementById('e-input').disabled = inTrash;
   document.getElementById('btn-del').style.display = inTrash ? 'none' : '';
   document.getElementById('btn-res').style.display = inTrash ? '' : 'none';
-  document.getElementById('btn-preview').style.display = inTrash ? 'none' : '';
+  document.getElementById('btn-links').style.display = inTrash ? 'none' : '';
   document.getElementById('btn-duplicate').style.display = inTrash ? 'none' : '';
 
   currentTags = pending ? [...(pending.theme || [])] : [...(note.theme || [])];
@@ -2052,9 +2029,6 @@ function openNote(id) {
   document.getElementById('e-folder-row').style.display = inTrash ? 'none' : 'flex';
   renderFolderSelect(note.folder_id || null);
 
-  currentAttachments = pending ? [...(pending.attachments || [])] : [...(note.attachments || [])];
-
-  updatePreview();
   updateCharCount();
   setStatus(pending ? '未送信の変更があります' : '');
   updateCurrentEditingHighlight();
@@ -2084,27 +2058,45 @@ function autoOpenFirstForFilter() {
 }
 
 
-function togglePreview() {
-  showPreview = !showPreview;
-  document.getElementById('btn-preview').className = showPreview ? 'ebtn active' : 'ebtn';
-  document.getElementById('e-body').classList.toggle('preview-mode', showPreview);
-  document.getElementById('e-preview').style.display = showPreview ? 'block' : 'none';
-  updatePreview();
-}
-function updatePreview() {
-  if (!showPreview) return;
-  const preview = document.getElementById('e-preview');
-  preview.innerHTML = marked.parse(document.getElementById('e-input').value || '');
-  // Pasted-image markers render as <img src="attachment:<id>">; resolve each
-  // to a short-lived signed URL now that the HTML is in the DOM (the bucket
-  // is private, so there's no plain URL to bake into the markdown itself).
-  preview.querySelectorAll('img[src^="attachment:"]').forEach(img => {
-    const attId = img.getAttribute('src').slice('attachment:'.length);
-    const att = currentAttachments.find(a => a.id === attId);
-    img.removeAttribute('src');
-    if (!att) { img.alt = '(添付が見つかりません)'; return; }
-    getAttachmentUrl(att.path).then(url => { img.src = url; }).catch(e => { img.alt = '(読み込み失敗)'; console.error(e); });
+/* ── Links popup — replaces the old side-by-side preview mode ──
+   Preview mode was rarely used for anything but clicking a URL, so instead
+   of rendering the whole note as markdown, this just scans the raw text for
+   URLs and lists each one with the line directly above it as context (most
+   notes just paste a link under a one-line description). */
+function extractLinks(text) {
+  const lines = text.split('\n');
+  const urlRe = /https?:\/\/[^\s<>"'　]+/g;
+  const trailingPunct = /[)\]}>,.;:!?、。」』】]+$/;
+  const results = [];
+  lines.forEach((line, i) => {
+    const urls = line.match(urlRe);
+    if (!urls) return;
+    let desc = '';
+    for (let j = i - 1; j >= 0; j--) {
+      const t = lines[j].trim();
+      if (t) { desc = t; break; }
+    }
+    urls.forEach(raw => results.push({ desc, url: raw.replace(trailingPunct, '') }));
   });
+  return results;
+}
+
+function showLinksPopup() {
+  const text = document.getElementById('e-input').value || '';
+  const links = extractLinks(text);
+  const body = document.getElementById('links-body');
+  body.innerHTML = links.length
+    ? links.map(l =>
+        '<div class="link-item">' +
+          (l.desc ? '<div class="link-item-desc">' + esc(l.desc) + '</div>' : '') +
+          '<a class="link-item-url" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.url) + '</a>' +
+        '</div>'
+      ).join('')
+    : '<div class="links-empty">このメモにリンクは見つかりませんでした</div>';
+  document.getElementById('links-bg').classList.add('show');
+}
+function closeLinksPopup() {
+  document.getElementById('links-bg').classList.remove('show');
 }
 
 function updateCharCount() {
@@ -2120,72 +2112,6 @@ function toggleFocusMode() {
   document.getElementById('btn-focus').className = focusMode ? 'ebtn active' : 'ebtn';
 }
 
-/* ── Attachments (images / files) ──
-   Metadata (id/path/name/mime/size) rides along in notes.attachments (jsonb),
-   synced through the exact same draft/save pipeline as title/content/theme —
-   see draftFor/attemptSyncNote/onEdit above. The actual bytes live in the
-   Supabase Storage "attachments" bucket under `${uid}/${noteId}/...`, kept
-   private and read back via short-lived signed URLs (cached in memory only).
-   Images are downscaled/re-encoded client-side before upload to keep storage
-   and egress light. */
-const ATTACH_BUCKET = 'attachments';
-const ATTACH_MAX_DIM = 1600;
-const ATTACH_JPEG_QUALITY = 0.82;
-const signedUrlCache = new Map(); // path -> { url, expiresAt }
-
-async function compressImageFile(file) {
-  if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    let { width, height } = bitmap;
-    if (Math.max(width, height) > ATTACH_MAX_DIM) {
-      const scale = ATTACH_MAX_DIM / Math.max(width, height);
-      width = Math.round(width * scale);
-      height = Math.round(height * scale);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', ATTACH_JPEG_QUALITY));
-    if (!blob || blob.size >= file.size) return file; // compression didn't help — keep the original
-    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
-  } catch(e) {
-    console.error('image compress failed, uploading original', e);
-    return file;
-  }
-}
-
-/* Storage object keys must be ASCII — a Japanese (or otherwise non-ASCII)
-   filename passed straight into the key causes Supabase Storage to reject
-   the upload with "Invalid key". The original filename is preserved
-   separately in the attachment's `name` field for display, so nothing is
-   lost — only the on-disk key gets Latinized. */
-function safeStorageName(filename) {
-  const dot = filename.lastIndexOf('.');
-  const ext = (dot > 0 ? filename.slice(dot) : '').replace(/[^A-Za-z0-9.]/g, '');
-  const base = (dot > 0 ? filename.slice(0, dot) : filename).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 60);
-  return (base || 'file') + ext;
-}
-
-async function uploadAttachmentFile(file) {
-  const processed = await compressImageFile(file);
-  const attId = crypto.randomUUID();
-  const safeName = safeStorageName(file.name);
-  const path = `${uid}/${currentId}/${attId}-${safeName}`;
-  const { error } = await sb.storage.from(ATTACH_BUCKET).upload(path, processed, { contentType: processed.type || 'application/octet-stream', upsert: false });
-  if (error) throw error;
-  return { id: attId, path, name: file.name, mime: processed.type || file.type || '', size: processed.size };
-}
-
-async function getAttachmentUrl(path) {
-  const cached = signedUrlCache.get(path);
-  if (cached && cached.expiresAt > Date.now()) return cached.url;
-  const { data, error } = await sb.storage.from(ATTACH_BUCKET).createSignedUrl(path, 3600);
-  if (error) throw error;
-  signedUrlCache.set(path, { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 });
-  return data.signedUrl;
-}
-
 function onEdit() {
   if (inTrash || !currentId) return;
   setStatus('…');
@@ -2194,8 +2120,7 @@ function onEdit() {
   savePendingDraft(currentId, draftFor(currentId, type, {
     title: document.getElementById('e-title').value,
     content: document.getElementById('e-input').value,
-    theme: currentTags,
-    attachments: currentAttachments
+    theme: currentTags
   }));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 900);
@@ -2314,13 +2239,12 @@ async function doSave() {
   const title   = document.getElementById('e-title').value;
   const content = document.getElementById('e-input').value;
   const theme   = currentTags;
-  const attachments = currentAttachments;
   const savingId = currentId;
   const localNote = notes.find(n => n.id === savingId);
   const isNew = !!(localNote && localNote.__pendingCreate);
   const baseUpdatedAt = editBaseUpdatedAt;
   try {
-    const result = await attemptSyncNote(savingId, { title, content, theme, attachments }, {
+    const result = await attemptSyncNote(savingId, { title, content, theme }, {
       isNew, baseUpdatedAt,
       sort_order: localNote ? localNote.sort_order : 0,
       pinned: localNote ? !!localNote.pinned : false,
@@ -2360,7 +2284,7 @@ async function newNote() {
   const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
   const folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
-    id, user_id: uid, title: '', content: '', theme: [], attachments: [], pinned: false, folder_id: folderId,
+    id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
     sort_order: minOrder - 1, updated_at: new Date().toISOString(),
     __pendingCreate: true
   };
@@ -2371,7 +2295,7 @@ async function newNote() {
 
   try {
     const { data, error } = await sb.from('notes').insert({
-      id, user_id: uid, title: '', content: '', theme: [], attachments: [], last_writer_session: sessionId, pinned: false, folder_id: folderId,
+      id, user_id: uid, title: '', content: '', theme: [], last_writer_session: sessionId, pinned: false, folder_id: folderId,
       sort_order: localNote.sort_order, updated_at: localNote.updated_at
     }).select().single();
     if (error) throw error;
@@ -2483,7 +2407,10 @@ function setStatus(msg, cls) {
 document.getElementById('dialog-bg').addEventListener('click', e => {
   if (e.target === document.getElementById('dialog-bg')) closeDialog();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+document.getElementById('links-bg').addEventListener('click', e => {
+  if (e.target === document.getElementById('links-bg')) closeLinksPopup();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDialog(); closeLinksPopup(); } });
 
 /* Ctrl/Cmd+C or +X with no selection acts on the whole current line, like
    many code editors — otherwise plain copy/cut only work on an explicit
@@ -2528,46 +2455,10 @@ document.getElementById('e-input').addEventListener('keydown', async e => {
     el.setSelectionRange(lineStart, removeEnd);
     document.execCommand('insertText', false, ''); // deletes the selection while keeping undo history intact
     onEdit();
-    updatePreview();
   }
 });
 
-/* Pasting a screenshot (or any image) straight from the clipboard is the
-   only way to attach a file: it's compressed, uploaded, tracked in
-   currentAttachments (synced like any other note field — see draftFor/
-   attemptSyncNote/onEdit above), and a `![name](attachment:<id>)` marker is
-   dropped at the cursor so it reads inline with the surrounding text. See
-   updatePreview() for how that marker becomes an actual <img> in preview
-   mode. */
-async function handleImagePaste(file, el) {
-  if (!currentId) return;
-  if (!navigator.onLine) { alert('オフライン時は画像を貼り付けられません。オンラインになってから試してください。'); return; }
-  const pos = el.selectionStart;
-  const placeholderName = file.name && file.name !== 'image.png' ? file.name : ('スクリーンショット' + new Date().toLocaleString('ja-JP'));
-  try {
-    const meta = await uploadAttachmentFile(new File([file], placeholderName, { type: file.type }));
-    currentAttachments.push(meta);
-    const marker = '![' + meta.name + '](attachment:' + meta.id + ')\n';
-    el.focus();
-    el.setSelectionRange(pos, pos);
-    document.execCommand('insertText', false, marker); // keeps undo history intact
-    onEdit();
-    updatePreview();
-  } catch(err) {
-    console.error('pasted image upload failed', err);
-    alert('画像の貼り付けに失敗しました: ' + (err.message || err));
-  }
-}
-
 document.getElementById('e-input').addEventListener('paste', e => {
-  const items = (e.clipboardData || window.clipboardData).items || [];
-  const imageItem = Array.from(items).find(it => it.kind === 'file' && it.type.startsWith('image/'));
-  if (imageItem) {
-    e.preventDefault();
-    const file = imageItem.getAsFile();
-    if (file) handleImagePaste(file, e.target);
-    return;
-  }
   if (forceNormalPaste) { forceNormalPaste = false; return; } // Ctrl/Cmd+Shift+V — let the browser's normal paste happen
   if (!lastClipboardWasLineCopy) return; // not from our line-copy/cut — normal paste
   lastClipboardWasLineCopy = false; // only the very next paste is affected
@@ -2584,7 +2475,6 @@ document.getElementById('e-input').addEventListener('paste', e => {
   el.setSelectionRange(lineStart, lineStart);
   document.execCommand('insertText', false, insertion); // keeps undo history intact
   onEdit();
-  updatePreview();
 });
 
 /* Close the editor on a genuine backdrop click, but not when a text
