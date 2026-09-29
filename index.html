@@ -45,21 +45,21 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
    and position never change — only the two side panes disappear visually. */
 #app.focus-mode #sidebar, #app.focus-mode #main { visibility: hidden; pointer-events: none; }
 
-/* Login screen */
-#login-screen {
+/* Login screen (and the password-recovery screen, which shares the same look) */
+#login-screen, #recovery-screen {
   height: 100vh; height: 100dvh;
   display: flex; align-items: center; justify-content: center;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
-#login-screen.hide { display: none; }
-#login-box { width: 100%; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 26px; }
-#login-box h1 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
-#login-box p { font-size: 12px; color: var(--text3); margin-bottom: 20px; font-family: var(--mono); }
-#login-box input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; outline: none; margin-bottom: 10px; }
-#login-box input:focus { border-color: var(--text2); }
-#login-box button { width: 100%; padding: 10px; border: none; border-radius: 6px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; }
-#login-box button:hover { opacity: .9; }
-#login-err { font-size: 12px; color: var(--red); margin-top: 10px; font-family: var(--mono); min-height: 16px; }
+#login-screen.hide, #recovery-screen.hide { display: none; }
+#login-box, #recovery-box { width: 100%; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 26px; }
+#login-box h1, #recovery-box h1 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+#login-box p, #recovery-box p { font-size: 12px; color: var(--text3); margin-bottom: 20px; font-family: var(--mono); }
+#login-box input, #recovery-box input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; outline: none; margin-bottom: 10px; }
+#login-box input:focus, #recovery-box input:focus { border-color: var(--text2); }
+#login-box button, #recovery-box button { width: 100%; padding: 10px; border: none; border-radius: 6px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+#login-box button:hover, #recovery-box button:hover { opacity: .9; }
+#login-err, #recovery-err { font-size: 12px; color: var(--red); margin-top: 10px; font-family: var(--mono); min-height: 16px; }
 
 /* Sidebar (rail: search / theme filter / trash-new) */
 #sidebar { width: 250px; min-width: 250px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
@@ -376,6 +376,20 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <input id="login-pass" type="password" placeholder="パスワード" autocomplete="current-password">
     <button onclick="doLogin()">ログイン</button>
     <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- Shown instead of the login screen when the page was opened from a
+     Supabase password-recovery email link (Supabase fires a PASSWORD_RECOVERY
+     auth event in that case — see showRecoveryScreen()/doSetNewPassword()). -->
+<div id="recovery-screen" class="hide">
+  <div id="recovery-box">
+    <h1>パスワードの再設定</h1>
+    <p>新しいパスワードを入力してください</p>
+    <input id="recovery-new-pass" type="password" placeholder="新しいパスワード(6文字以上)" autocomplete="new-password">
+    <input id="recovery-new-pass2" type="password" placeholder="新しいパスワード(確認)" autocomplete="new-password">
+    <button onclick="doSetNewPassword()">パスワードを設定</button>
+    <div id="recovery-err"></div>
   </div>
 </div>
 
@@ -904,13 +918,52 @@ async function saveAIAnswerAsNote() {
 
 function enterApp() {
   document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('recovery-screen').classList.add('hide');
   document.getElementById('app').classList.add('show');
   boot();
 }
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
+/* ── Password recovery ──
+   Clicking "Reset password" in a Supabase recovery email lands back here with
+   a recovery token in the URL; supabase-js picks that up on load and fires a
+   PASSWORD_RECOVERY auth event (rather than us having to parse the URL
+   ourselves). While that's pending, initAuth() below must NOT auto-enter the
+   app just because a (temporary, recovery-only) session already exists. */
+let inRecoveryFlow = /type=recovery/.test(location.hash) || /type=recovery/.test(location.search);
+
+function showRecoveryScreen() {
+  inRecoveryFlow = true;
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('recovery-screen').classList.remove('hide');
+  document.getElementById('recovery-new-pass').focus();
+}
+
+async function doSetNewPassword() {
+  const pass = document.getElementById('recovery-new-pass').value;
+  const pass2 = document.getElementById('recovery-new-pass2').value;
+  const err = document.getElementById('recovery-err');
+  err.textContent = '';
+  if (pass.length < 6) { err.textContent = 'パスワードは6文字以上にしてください。'; return; }
+  if (pass !== pass2) { err.textContent = '確認用パスワードが一致しません。'; return; }
+
+  const { data, error } = await sb.auth.updateUser({ password: pass });
+  if (error) { err.textContent = '更新に失敗しました: ' + error.message; return; }
+
+  inRecoveryFlow = false;
+  uid = data.user.id;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) await sb.realtime.setAuth(session.access_token);
+  // Drop the recovery token from the URL so a reload doesn't re-trigger this screen.
+  history.replaceState(null, '', location.pathname);
+  enterApp();
+}
+document.getElementById('recovery-new-pass2').addEventListener('keydown', e => { if (e.key === 'Enter') doSetNewPassword(); });
+
 /* Keep the realtime connection authenticated across token refreshes */
 sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') { showRecoveryScreen(); return; }
   if (session) {
     uid = session.user.id;
     sb.realtime.setAuth(session.access_token);
@@ -918,6 +971,7 @@ sb.auth.onAuthStateChange((event, session) => {
 });
 
 (async function initAuth() {
+  if (inRecoveryFlow) return; // wait for the PASSWORD_RECOVERY event / the form above instead
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     uid = session.user.id;
