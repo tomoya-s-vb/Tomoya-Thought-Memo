@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>クイック追記</title>
+<title>クイックメモ</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="クイック追記">
+<meta name="apple-mobile-web-app-title" content="クイックメモ">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="icon-quick-180.png">
 <link rel="preconnect" href="https://itvumfppblhirvbuynwt.supabase.co">
@@ -58,8 +58,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   display: flex; align-items: center; justify-content: space-between;
 }
 #q-head h1 { font-size: 14px; font-weight: 500; }
-#q-head a { font-size: 12px; color: var(--text3); font-family: var(--mono); text-decoration: none; }
-#q-head a:hover { color: var(--text); }
 #q-body { flex: 1; display: flex; flex-direction: column; padding: 18px; min-height: 0; }
 #q-input {
   flex: 1; width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
@@ -67,11 +65,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   line-height: 1.7; resize: none; outline: none;
 }
 #q-input:focus { border-color: var(--text2); }
-#q-foot { padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
-#q-status { flex: 1; font-size: 12px; font-family: var(--mono); color: var(--text3); min-height: 16px; }
+#q-foot { padding: 0 18px calc(14px + env(safe-area-inset-bottom)); flex-shrink: 0; }
+#q-status { font-size: 12px; font-family: var(--mono); color: var(--text3); min-height: 16px; }
 #q-status.ok { color: var(--green); }
 #q-status.err { color: var(--red); }
-#q-save { padding: 12px 22px; border: none; border-radius: 8px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; }
+#q-save { padding: 7px 16px; border: none; border-radius: 8px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0; }
 #q-save:hover { opacity: .9; }
 #q-save:disabled { opacity: .4; cursor: default; }
 </style>
@@ -80,7 +78,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 <div id="login-screen">
   <div id="login-box">
-    <h1>クイック追記</h1>
+    <h1>クイックメモ</h1>
     <p>ログインしてください</p>
     <input id="login-email" type="email" placeholder="メールアドレス" autocomplete="username">
     <input id="login-pass" type="password" placeholder="パスワード" autocomplete="current-password">
@@ -91,15 +89,14 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 
 <div id="app">
   <div id="q-head">
-    <h1>✏️ クイック追記</h1>
-    <a href="index.html">Tomoya Memo →</a>
+    <h1>✏️ クイックメモ</h1>
+    <button id="q-save" onclick="saveQuickNote()">保存</button>
   </div>
   <div id="q-body">
     <textarea id="q-input" placeholder="ここに入力…" autofocus></textarea>
   </div>
   <div id="q-foot">
     <span id="q-status"></span>
-    <button id="q-save" onclick="saveQuickNote()">保存</button>
   </div>
 </div>
 
