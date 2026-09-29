@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>クイック追記</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="クイック追記">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://itvumfppblhirvbuynwt.supabase.co">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f4f0; --surface: #faf9f7; --border: #e2e0d8;
+  --text: #1a1916; --text2: #6b6860; --text3: #a9a79f; --soft: #e8e6df;
+  --green: #2d6a4f; --greenbg: #eaf4ee; --red: #9b2c2c; --redbg: #fdf0f0;
+  --mono: 'BIZ UDGothic', monospace; --sans: 'BIZ UDPGothic', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141412; --surface: #1c1b18; --border: #2e2c28;
+    --text: #f0ede6; --text2: #8a877e; --text3: #4a4844; --soft: #252320;
+    --green: #4ade80; --greenbg: #0d2e1a; --red: #f87171; --redbg: #2a0f0f;
+  }
+}
+html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); overscroll-behavior: none; }
+
+#login-screen {
+  height: 100vh; height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+#login-screen.hide { display: none; }
+#login-box { width: 100%; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 26px; }
+#login-box h1 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+#login-box p { font-size: 12px; color: var(--text3); margin-bottom: 20px; font-family: var(--mono); }
+#login-box input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; outline: none; margin-bottom: 10px; }
+#login-box input:focus { border-color: var(--text2); }
+#login-box button { width: 100%; padding: 10px; border: none; border-radius: 6px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+#login-box button:hover { opacity: .9; }
+#login-err { font-size: 12px; color: var(--red); margin-top: 10px; font-family: var(--mono); min-height: 16px; }
+
+#app {
+  display: none; flex-direction: column;
+  height: 100vh; height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#app.show { display: flex; }
+#q-head {
+  padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#q-head h1 { font-size: 14px; font-weight: 500; }
+#q-head a { font-size: 12px; color: var(--text3); font-family: var(--mono); text-decoration: none; }
+#q-head a:hover { color: var(--text); }
+#q-body { flex: 1; display: flex; flex-direction: column; padding: 18px; min-height: 0; }
+#q-input {
+  flex: 1; width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); font-family: var(--sans); font-size: 16px;
+  line-height: 1.7; resize: none; outline: none;
+}
+#q-input:focus { border-color: var(--text2); }
+#q-foot { padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+#q-status { flex: 1; font-size: 12px; font-family: var(--mono); color: var(--text3); min-height: 16px; }
+#q-status.ok { color: var(--green); }
+#q-status.err { color: var(--red); }
+#q-save { padding: 12px 22px; border: none; border-radius: 8px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; }
+#q-save:hover { opacity: .9; }
+#q-save:disabled { opacity: .4; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div id="login-box">
+    <h1>クイック追記</h1>
+    <p>ログインしてください</p>
+    <input id="login-email" type="email" placeholder="メールアドレス" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="パスワード" autocomplete="current-password">
+    <button onclick="doLogin()">ログイン</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="q-head">
+    <h1>✏️ クイック追記</h1>
+    <a href="index.html">Tomoya Memo →</a>
+  </div>
+  <div id="q-body">
+    <textarea id="q-input" placeholder="ここに入力…" autofocus></textarea>
+  </div>
+  <div id="q-foot">
+    <span id="q-status"></span>
+    <button id="q-save" onclick="saveQuickNote()">保存</button>
+  </div>
+</div>
+
+<script>
+/* Minimal sibling to index.html: same Supabase project, so a session
+   started in the main app is already there (same origin → shared
+   localStorage) and this needs no separate login most of the time.
+   Its only job is "type something, tap 保存, it becomes a new note" —
+   no list, no tags, no folders, nothing else to load or render, so it
+   opens instantly from its own home-screen icon. */
+const SUPABASE_URL = 'https://itvumfppblhirvbuynwt.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sessionId = crypto.randomUUID();
+let uid = null;
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-err');
+  err.textContent = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { err.textContent = 'ログインできませんでした: ' + error.message; return; }
+  uid = data.user.id;
+  enterApp();
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+function enterApp() {
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('app').classList.add('show');
+  document.getElementById('q-input').focus();
+}
+
+(async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { uid = session.user.id; enterApp(); }
+})();
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('q-status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+async function saveQuickNote() {
+  const input = document.getElementById('q-input');
+  const content = input.value.trim();
+  if (!content) return;
+
+  const btn = document.getElementById('q-save');
+  btn.disabled = true;
+  setStatus('保存中…');
+  try {
+    // A fresh note each time — no target-note picker needed. sort_order puts
+    // it at the very front of the manually-ordered list too (matters on
+    // desktop; mobile always sorts by update time regardless).
+    const { data: minRow } = await sb.from('notes').select('sort_order').order('sort_order', { ascending: true }).limit(1).maybeSingle();
+    const minOrder = minRow ? (minRow.sort_order ?? 0) : 0;
+    const { error } = await sb.from('notes').insert({
+      id: crypto.randomUUID(), user_id: uid, title: '', content, theme: [],
+      pinned: false, folder_id: null, sort_order: minOrder - 1,
+      updated_at: new Date().toISOString(), last_writer_session: sessionId
+    });
+    if (error) throw error;
+    input.value = '';
+    setStatus('保存しました ✓', 'ok');
+    setTimeout(() => setStatus(''), 2000);
+  } catch(e) {
+    setStatus('保存に失敗しました: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+// Ctrl/Cmd+Enter saves without leaving the keyboard (mobile just taps 保存).
+document.getElementById('q-input').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); saveQuickNote(); }
+});
+</script>
+</body>
+</html>
