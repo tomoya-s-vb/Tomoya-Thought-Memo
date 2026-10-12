@@ -10,11 +10,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="icon-quick-180.png">
 <link rel="preconnect" href="https://itvumfppblhirvbuynwt.supabase.co">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<!-- Web font is loaded without blocking first paint (media="print" swap) so the
+     input screen can appear before the font request finishes. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -30,7 +32,7 @@
     --green: #4ade80; --greenbg: #0d2e1a; --red: #f87171; --redbg: #2a0f0f;
   }
 }
-html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); overscroll-behavior: none; }
+html, body { height: 100%; font-family: var(--sans), 'Hiragino Sans', 'Yu Gothic', sans-serif; background: var(--bg); color: var(--text); overscroll-behavior: none; }
 
 #login-screen {
   height: 100vh; height: 100dvh;
@@ -58,7 +60,19 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   display: flex; align-items: center; justify-content: space-between;
 }
 #q-head h1 { font-size: 14px; font-weight: 500; }
-#q-body { flex: 1; display: flex; flex-direction: column; padding: 18px; min-height: 0; }
+#q-save { padding: 7px 16px; border: none; border-radius: 8px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0; }
+#q-save:hover { opacity: .9; }
+#q-save:disabled { opacity: .4; cursor: default; }
+#q-meta { display: flex; gap: 8px; padding: 12px 18px 0; flex-shrink: 0; }
+#q-title, #q-folder {
+  padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); font-family: var(--sans); font-size: 16px; outline: none;
+}
+#q-title { flex: 1; min-width: 0; }
+#q-folder { width: 38%; max-width: 180px; color: var(--text2); }
+#q-title:focus, #q-folder:focus { border-color: var(--text2); }
+#q-title::placeholder { color: var(--text3); }
+#q-body { flex: 1; display: flex; flex-direction: column; padding: 12px 18px 18px; min-height: 0; }
 #q-input {
   flex: 1; width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
   background: var(--surface); color: var(--text); font-family: var(--sans); font-size: 16px;
@@ -69,14 +83,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #q-status { font-size: 12px; font-family: var(--mono); color: var(--text3); min-height: 16px; }
 #q-status.ok { color: var(--green); }
 #q-status.err { color: var(--red); }
-#q-save { padding: 7px 16px; border: none; border-radius: 8px; background: var(--text); color: var(--bg); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0; }
-#q-save:hover { opacity: .9; }
-#q-save:disabled { opacity: .4; cursor: default; }
 </style>
 </head>
 <body>
 
-<div id="login-screen">
+<div id="login-screen" class="hide">
   <div id="login-box">
     <h1>クイックメモ</h1>
     <p>ログインしてください</p>
@@ -92,8 +103,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
     <h1>✏️ クイックメモ</h1>
     <button id="q-save" onclick="saveQuickNote()">保存</button>
   </div>
+  <div id="q-meta">
+    <input id="q-title" placeholder="タイトル(省略可)" autocomplete="off" enterkeyhint="next">
+    <select id="q-folder" aria-label="フォルダ"><option value="">📁 未分類</option></select>
+  </div>
   <div id="q-body">
-    <textarea id="q-input" placeholder="ここに入力…" autofocus></textarea>
+    <textarea id="q-input" placeholder="ここに入力…"></textarea>
   </div>
   <div id="q-foot">
     <span id="q-status"></span>
@@ -101,18 +116,79 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 </div>
 
 <script>
-/* Minimal sibling to index.html: same Supabase project, so a session
-   started in the main app is already there (same origin → shared
-   localStorage) and this needs no separate login most of the time.
-   Its only job is "type something, tap 保存, it becomes a new note" —
-   no list, no tags, no folders, nothing else to load or render, so it
-   opens instantly from its own home-screen icon. */
+/* Launch speed: a Supabase session from a previous visit lives in localStorage
+   and is readable synchronously, so if one is there we show the input screen
+   RIGHT NOW — before the Supabase script has even downloaded — instead of
+   waiting for getSession() (which can itself need a network round-trip to
+   refresh an expired token). The real session check still runs afterwards;
+   in the rare case it fails, the login screen takes over (typed text stays). */
+(function showAppEarly() {
+  try {
+    if (localStorage.getItem('sb-itvumfppblhirvbuynwt-auth-token')) {
+      document.getElementById('app').classList.add('show');
+      document.getElementById('q-input').focus();
+      return;
+    }
+  } catch (e) {}
+  document.getElementById('login-screen').classList.remove('hide');
+})();
+</script>
+
+<script>
+/* Minimal sibling to index.html: same Supabase project. Its only job is
+   "type something (optional title / folder), tap 保存, it becomes a new note". */
 const SUPABASE_URL = 'https://itvumfppblhirvbuynwt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_iOkh_MHaXukHHDHV8d8Shw__rwczL54';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sessionId = crypto.randomUUID();
-let uid = null;
+const FOLDER_CACHE_KEY = 'quickFoldersCache';
+const FOLDER_PICK_KEY = 'quickLastFolder';
+let sb = null, uid = null;
+let resolveAuthKnown;
+const authKnown = new Promise(r => { resolveAuthKnown = r; });
 
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+function showApp() {
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('app').classList.add('show');
+  document.getElementById('q-input').focus();
+}
+function showLogin() {
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('login-screen').classList.remove('hide');
+}
+
+/* ── Folder picker ──
+   Rendered first from a local cache (so it's populated instantly at launch),
+   then refreshed from the server once the session is confirmed. */
+function renderFolderOptions(list) {
+  const sel = document.getElementById('q-folder');
+  const want = sel.value || lsGet(FOLDER_PICK_KEY) || '';
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = '📁 未分類';
+  sel.appendChild(none);
+  list.forEach(f => {
+    const o = document.createElement('option');
+    o.value = f.id; o.textContent = '📁 ' + f.name;
+    sel.appendChild(o);
+  });
+  sel.value = list.some(f => f.id === want) ? want : '';
+}
+async function refreshFolders() {
+  try {
+    const { data, error } = await sb.from('folders').select('id,name,sort_order').order('sort_order', { ascending: true });
+    if (error) throw error;
+    const list = (data || []).map(f => ({ id: f.id, name: f.name }));
+    lsSet(FOLDER_CACHE_KEY, JSON.stringify(list));
+    renderFolderOptions(list);
+  } catch (e) { console.error('load folders failed', e); }
+}
+document.getElementById('q-folder').addEventListener('change', e => lsSet(FOLDER_PICK_KEY, e.target.value));
+try { renderFolderOptions(JSON.parse(lsGet(FOLDER_CACHE_KEY) || '[]')); } catch (e) {}
+
+/* ── Auth ── */
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-pass').value;
@@ -121,20 +197,21 @@ async function doLogin() {
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) { err.textContent = 'ログインできませんでした: ' + error.message; return; }
   uid = data.user.id;
-  enterApp();
+  showApp();
+  refreshFolders();
 }
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-function enterApp() {
-  document.getElementById('login-screen').classList.add('hide');
-  document.getElementById('app').classList.add('show');
-  document.getElementById('q-input').focus();
-}
-
-(async function initAuth() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) { uid = session.user.id; enterApp(); }
-})();
+// Deferred scripts (the Supabase library) have run by DOMContentLoaded.
+window.addEventListener('DOMContentLoaded', async () => {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { uid = session.user.id; showApp(); refreshFolders(); }
+    else showLogin();
+  } catch (e) { showLogin(); }
+  resolveAuthKnown();
+});
 
 function setStatus(msg, cls) {
   const el = document.getElementById('q-status');
@@ -144,28 +221,33 @@ function setStatus(msg, cls) {
 
 async function saveQuickNote() {
   const input = document.getElementById('q-input');
+  const titleEl = document.getElementById('q-title');
   const content = input.value.trim();
-  if (!content) return;
+  const title = titleEl.value.trim();
+  if (!content && !title) return;
 
   const btn = document.getElementById('q-save');
   btn.disabled = true;
   setStatus('保存中…');
   try {
-    // A fresh note each time — no target-note picker needed. sort_order puts
-    // it at the very front of the manually-ordered list too (matters on
-    // desktop; mobile always sorts by update time regardless).
+    await authKnown; // the screen is usable before this settles; saving is what has to wait
+    if (!uid) { showLogin(); setStatus(''); return; }
+    const folderId = document.getElementById('q-folder').value || null;
+    // A fresh note each time. sort_order puts it at the very front of the
+    // manually-ordered list too (matters on desktop; mobile sorts by update time).
     const { data: minRow } = await sb.from('notes').select('sort_order').order('sort_order', { ascending: true }).limit(1).maybeSingle();
     const minOrder = minRow ? (minRow.sort_order ?? 0) : 0;
     const { error } = await sb.from('notes').insert({
-      id: crypto.randomUUID(), user_id: uid, title: '', content, theme: [],
-      pinned: false, folder_id: null, sort_order: minOrder - 1,
+      id: crypto.randomUUID(), user_id: uid, title, content, theme: [],
+      pinned: false, folder_id: folderId, sort_order: minOrder - 1,
       updated_at: new Date().toISOString(), last_writer_session: sessionId
     });
     if (error) throw error;
     input.value = '';
+    titleEl.value = '';
     setStatus('保存しました ✓', 'ok');
     setTimeout(() => setStatus(''), 2000);
-  } catch(e) {
+  } catch (e) {
     setStatus('保存に失敗しました: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
@@ -173,8 +255,11 @@ async function saveQuickNote() {
   }
 }
 
-// Ctrl/Cmd+Enter saves without leaving the keyboard (mobile just taps 保存).
-document.getElementById('q-input').addEventListener('keydown', e => {
+// Enter in the title box jumps to the body; Ctrl/Cmd+Enter saves from anywhere.
+document.getElementById('q-title').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); document.getElementById('q-input').focus(); }
+});
+document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); saveQuickNote(); }
 });
 </script>
