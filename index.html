@@ -2158,6 +2158,17 @@ function updateCharCount() {
   document.getElementById('e-charcount').textContent = len.toLocaleString('ja-JP') + '字';
 }
 
+/* Enter in the title box jumps the cursor into the body. isComposing guards
+   the Enter that merely confirms a Japanese IME conversion (that one must
+   stay a plain "confirm", not move focus). */
+document.getElementById('e-title').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  const body = document.getElementById('e-input');
+  body.focus();
+  body.setSelectionRange(0, 0); // top of the body, not wherever the caret was last left
+});
+
 /* ── Focus mode: hide sidebar + card list, editor pane keeps its own layout ── */
 let focusMode = false;
 function toggleFocusMode() {
