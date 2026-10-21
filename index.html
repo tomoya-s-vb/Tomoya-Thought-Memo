@@ -672,6 +672,11 @@ const FOLDER_UNFILED = '__unfiled__';
    folder list and shows it as a fixed, un-renamable, un-deletable entry. */
 const FOLDER_TEMPLATE = '__template__';
 const TEMPLATE_FOLDER_NAME = 'テンプレ';
+/* FOLDER_DAILY is a second built-in entry, pinned to the very top of the list,
+   backed by a real folder row the same lazy way. Its notes ("10月21日：…") are
+   always listed in date order instead of the normal sort — see dailySortKey. */
+const FOLDER_DAILY = '__daily__';
+const DAILY_FOLDER_NAME = '🌟Daily';
 let folders = [];
 let activeFolder = FOLDER_ALL;
 
@@ -723,6 +728,7 @@ function noteMatchesFolderFilter(n) {
   if (activeFolder === FOLDER_ALL) return true;
   if (activeFolder === FOLDER_UNFILED) return !n.folder_id;
   if (activeFolder === FOLDER_TEMPLATE) return isTemplateFolderId(n.folder_id);
+  if (activeFolder === FOLDER_DAILY) return isDailyFolderId(n.folder_id);
   return n.folder_id === activeFolder;
 }
 
@@ -1537,6 +1543,7 @@ function renderFolders() {
 
   const desktop = document.getElementById('folder-list');
   desktop.innerHTML = '';
+  desktop.appendChild(buildFolderRow({ id: FOLDER_DAILY, name: DAILY_FOLDER_NAME }, true));
   sorted.forEach((f, i) => desktop.appendChild(buildFolderRow(f, false, i === 0, i === sorted.length - 1)));
   desktop.appendChild(buildFolderRow({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }, true));
   desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
@@ -1544,6 +1551,7 @@ function renderFolders() {
 
   const mobile = document.getElementById('mob-folder-list');
   mobile.innerHTML = '';
+  mobile.appendChild(buildFolderChip({ id: FOLDER_DAILY, name: DAILY_FOLDER_NAME }));
   sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
   mobile.appendChild(buildFolderChip({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }));
   mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
@@ -1564,6 +1572,10 @@ function renderFolderSelect(currentFolderId) {
   unfiled.value = '';
   unfiled.textContent = '未分類';
   sel.appendChild(unfiled);
+  const dailyOpt = document.createElement('option');
+  dailyOpt.value = FOLDER_DAILY;
+  dailyOpt.textContent = DAILY_FOLDER_NAME;
+  sel.appendChild(dailyOpt);
   userFolders().forEach(f => {
     const opt = document.createElement('option');
     opt.value = f.id;
@@ -1574,7 +1586,7 @@ function renderFolderSelect(currentFolderId) {
   tplOpt.value = FOLDER_TEMPLATE;
   tplOpt.textContent = TEMPLATE_FOLDER_NAME;
   sel.appendChild(tplOpt);
-  sel.value = isTemplateFolderId(currentFolderId) ? FOLDER_TEMPLATE : (currentFolderId || '');
+  sel.value = isTemplateFolderId(currentFolderId) ? FOLDER_TEMPLATE : isDailyFolderId(currentFolderId) ? FOLDER_DAILY : (currentFolderId || '');
 }
 
 function onFolderSelectChange() {
@@ -1656,7 +1668,7 @@ function startRenameFolder(folder, nameEl) {
     if (committed) return;
     committed = true;
     let newName = input.value.trim() || folder.name;
-    if (newName === TEMPLATE_FOLDER_NAME) newName = folder.name; // reserved for the built-in folder
+    if (newName === TEMPLATE_FOLDER_NAME || newName === DAILY_FOLDER_NAME) newName = folder.name; // reserved for the built-in folder
     if (newName !== folder.name) {
       folder.name = newName;
       try { await sb.from('folders').update({ name: newName }).eq('id', folder.id); }
@@ -1716,6 +1728,7 @@ async function createFolder(name) {
   name = name.trim();
   if (!name || !uid) return;
   if (name === TEMPLATE_FOLDER_NAME) { selectFolder(FOLDER_TEMPLATE); return; } // already built in
+  if (name === DAILY_FOLDER_NAME) { selectFolder(FOLDER_DAILY); return; }
   const maxOrder = folders.reduce((m,f) => Math.max(m, f.sort_order ?? 0), 0);
   try {
     const { data, error } = await sb.from('folders').insert({ user_id: uid, name, sort_order: maxOrder + 1 }).select().single();
@@ -1733,6 +1746,9 @@ async function assignToFolder(id, folderId) {
   if (folderId === FOLDER_TEMPLATE) {
     try { folderId = await ensureTemplateFolder(); }
     catch(e) { console.error('template folder unavailable', e); return; }
+  } else if (folderId === FOLDER_DAILY) {
+    try { folderId = await ensureDailyFolder(); }
+    catch(e) { console.error('daily folder unavailable', e); return; }
   }
   const siblings = notes.filter(x => x.id !== id && (x.folder_id || null) === (folderId || null) && !!x.pinned === !!n.pinned);
   n.folder_id = folderId;
@@ -1763,6 +1779,7 @@ function isMobileLayout() {
 }
 
 function sortGroup(list) {
+  if (activeFolder === FOLDER_DAILY && !inTrash) return list.sort(dailySortCompare);
   const mode = isMobileLayout() ? 'auto' : sortMode;
   if (mode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   return list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -2030,7 +2047,7 @@ async function togglePin(id) {
 let ptrDrag = null; // { id, sourceItem }
 
 function wireDrag(item, n) {
-  if (inTrash) return;
+  if (inTrash || activeFolder === FOLDER_DAILY) return; // Daily is fixed date order
   if (!isMobileLayout() && sortMode !== 'manual') return; // desktop: reordering only in manual mode
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
@@ -2716,10 +2733,49 @@ async function doSave() {
    note from its title/content/tags with {{日付}} etc. filled in. With no
    templates yet, ＋ goes straight to a blank note like before. */
 function isTemplateName(f) { return (f.name || '').trim() === TEMPLATE_FOLDER_NAME; }
+function isDailyName(f) { return (f.name || '').trim() === DAILY_FOLDER_NAME; }
+function dailyFolders() { return folders.filter(isDailyName); }
+function isDailyFolderId(id) { return !!id && dailyFolders().some(f => f.id === id); }
+function primaryDailyFolder() {
+  return dailyFolders().sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1))[0] || null;
+}
+let dailyFolderPromise = null;
+function ensureDailyFolder() {
+  const existing = primaryDailyFolder();
+  if (existing) return Promise.resolve(existing.id);
+  if (!dailyFolderPromise) {
+    dailyFolderPromise = (async () => {
+      try {
+        await refreshFolders();
+        const again = primaryDailyFolder();
+        if (again) return again.id;
+        const { data, error } = await sb.from('folders').insert({ user_id: uid, name: DAILY_FOLDER_NAME, sort_order: -2 }).select().single();
+        if (error) throw error;
+        folders.push(data);
+        renderFolders();
+        return data.id;
+      } finally { dailyFolderPromise = null; }
+    })();
+  }
+  return dailyFolderPromise;
+}
+/* Daily ordering: titles containing "M月D日" come first in calendar order
+   (1月 → 12月, then by day); everything else follows, by name. */
+function dailySortCompare(a, b) {
+  const key = n => {
+    const m = (n.title || '').normalize('NFKC').match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+    return m ? Number(m[1]) * 100 + Number(m[2]) : null;
+  };
+  const ka = key(a), kb = key(b);
+  if (ka !== null && kb !== null && ka !== kb) return ka - kb;
+  if (ka !== null && kb === null) return -1;
+  if (ka === null && kb !== null) return 1;
+  return (a.title || '').localeCompare(b.title || '', 'ja', { numeric: true });
+}
 function templateFolders() { return folders.filter(isTemplateName); }
 function isTemplateFolderId(id) { return !!id && templateFolders().some(f => f.id === id); }
 function userFolders() {
-  return folders.filter(f => !isTemplateName(f)).sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return folders.filter(f => !isTemplateName(f) && !isDailyName(f)).sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 /* The one folder row new template notes get filed under. If two devices ever
    both created the row (first use at the same moment), every folder with this
@@ -2810,12 +2866,12 @@ function createFromTemplate(tpl) {
   const now = new Date();
   // A note made while browsing テンプレ must not land back in it and turn into
   // another template; elsewhere it follows the current folder, as usual.
-  const realFolder = activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED && activeFolder !== FOLDER_TEMPLATE;
+  const realFolder = activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED && activeFolder !== FOLDER_TEMPLATE && activeFolder !== FOLDER_DAILY;
   newNote({
     title: fillTemplatePlaceholders(tpl.title || '', now),
     content: fillTemplatePlaceholders(tpl.content || '', now),
     theme: tpl.theme || [],
-    folderId: realFolder ? activeFolder : null
+    folderId: realFolder ? activeFolder : (activeFolder === FOLDER_DAILY ? undefined : null)
   });
 }
 
@@ -2831,6 +2887,8 @@ async function newNote(init) {
   else if (activeFolder === FOLDER_TEMPLATE) {
     // A blank note made while browsing テンプレ is a new template.
     try { folderId = await ensureTemplateFolder(); } catch(e) { folderId = null; }
+  } else if (activeFolder === FOLDER_DAILY) {
+    try { folderId = await ensureDailyFolder(); } catch(e) { folderId = null; }
   } else folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
     id, user_id: uid, title, content, theme, pinned: false, folder_id: folderId,
