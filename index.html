@@ -1780,6 +1780,7 @@ function isMobileLayout() {
 
 function sortGroup(list) {
   if (activeFolder === FOLDER_DAILY && !inTrash) return list.sort(dailySortCompare);
+  if (activeFolder === FOLDER_TEMPLATE && !inTrash) return list.sort(nameSortCompare);
   const mode = isMobileLayout() ? 'auto' : sortMode;
   if (mode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   return list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -2047,7 +2048,7 @@ async function togglePin(id) {
 let ptrDrag = null; // { id, sourceItem }
 
 function wireDrag(item, n) {
-  if (inTrash || activeFolder === FOLDER_DAILY) return; // Daily is fixed date order
+  if (inTrash || activeFolder === FOLDER_DAILY || activeFolder === FOLDER_TEMPLATE) return; // fixed orders
   if (!isMobileLayout() && sortMode !== 'manual') return; // desktop: reordering only in manual mode
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
@@ -2761,6 +2762,9 @@ function ensureDailyFolder() {
 }
 /* Daily ordering: titles containing "M月D日" come first in calendar order
    (1月 → 12月, then by day); everything else follows, by name. */
+function nameSortCompare(a, b) {
+  return (a.title || '').localeCompare(b.title || '', 'ja', { numeric: true });
+}
 function dailySortCompare(a, b) {
   const key = n => {
     const m = (n.title || '').normalize('NFKC').match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
@@ -2807,7 +2811,7 @@ function getTemplates() {
   const ids = new Set(templateFolders().map(f => f.id));
   if (!ids.size) return [];
   return notes.filter(n => ids.has(n.folder_id))
-    .sort((a, b) => ((a.sort_order ?? 0) - (b.sort_order ?? 0)) || (a.title || '').localeCompare(b.title || '', 'ja'));
+    .sort(nameSortCompare);
 }
 
 /* {{日付}} -> 10月21日   {{年月日}} -> 2026年10月21日   {{曜日}} -> 水   {{時刻}} -> 09:05
