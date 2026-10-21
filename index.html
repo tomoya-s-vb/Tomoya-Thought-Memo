@@ -271,6 +271,22 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .link-item-url:hover { text-decoration: underline; }
 .links-empty { font-size: 13px; color: var(--text3); text-align: center; padding: 16px 0; }
 
+/* New-note template picker (＋ button). Templates are just the notes filed in
+   the "テンプレ" folder — see getTemplates(). */
+#tpl-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; padding: 20px; }
+#tpl-bg.show { display: flex; }
+#tpl-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 14px; width: 100%; max-width: 380px; max-height: 80vh; display: flex; flex-direction: column; }
+#tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 0 4px; }
+#tpl-head span { font-size: 14px; font-weight: 500; }
+#tpl-head button { border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
+#tpl-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.tpl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: var(--sans); cursor: pointer; }
+.tpl-item:hover, .tpl-item:focus-visible { background: var(--soft); border-color: var(--text2); outline: none; }
+.tpl-item-title { font-size: 13.5px; font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-item-sub { font-size: 11.5px; color: var(--text3); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-item.blank { border-style: dashed; }
+#tpl-hint { font-size: 11px; color: var(--text3); line-height: 1.6; margin: 12px 4px 0; }
+
 /* Shared full-width sidebar action button (synthesize) */
 #synth-row, #mob-synth-row { padding: 4px 10px 12px; }
 .hbtn-wide { width: 100%; padding: 8px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--text2); font-family: var(--sans); font-size: 12px; cursor: pointer; }
@@ -432,7 +448,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           </div>
         </div>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
-        <button class="hbtn" id="new-btn" title="新規" onclick="newNote()">＋</button>
+        <button class="hbtn" id="new-btn" title="新規" onclick="onNewClick()">＋</button>
       </div>
     </div>
     <div id="s-search">
@@ -478,7 +494,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           <button onclick="exportNotes('txt')">テキスト</button>
         </div>
       </div>
-      <button class="hbtn" id="mob-new-btn" title="新規" onclick="newNote()">＋</button>
+      <button class="hbtn" id="mob-new-btn" title="新規" onclick="onNewClick()">＋</button>
     </div>
     <div id="mob-search">
       <div class="search-wrap" id="mob-search-wrap">
@@ -581,6 +597,17 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   </div>
 </div>
 
+<div id="tpl-bg" onclick="if (event.target === this) closeTemplatePicker()">
+  <div id="tpl-panel">
+    <div id="tpl-head">
+      <span>＋ 新しいメモ</span>
+      <button onclick="closeTemplatePicker()">✕</button>
+    </div>
+    <div id="tpl-list"></div>
+    <p id="tpl-hint">左のフォルダ欄の「テンプレ」に入れたメモがここに並びます。タイトルや本文に {{日付}}(例: 10月21日)・{{年月日}}・{{曜日}}・{{時刻}} と書くと、作成時にその日の日付・時刻に置き換わります。</p>
+  </div>
+</div>
+
 <div id="links-bg">
   <div id="links-panel">
     <div id="links-head">
@@ -638,6 +665,13 @@ const sessionId = crypto.randomUUID();
    folder_id. Both are fixed entries always shown above the real folders. */
 const FOLDER_ALL = null;
 const FOLDER_UNFILED = '__unfiled__';
+/* FOLDER_TEMPLATE is the built-in "テンプレ" entry, listed right above 未分類.
+   Unlike the other two it does have a real row in the `folders` table (created
+   on first use — see ensureTemplateFolder) so notes can point at it through
+   folder_id like any folder; the UI just hides that row from the user's own
+   folder list and shows it as a fixed, un-renamable, un-deletable entry. */
+const FOLDER_TEMPLATE = '__template__';
+const TEMPLATE_FOLDER_NAME = 'テンプレ';
 let folders = [];
 let activeFolder = FOLDER_ALL;
 
@@ -684,6 +718,13 @@ document.addEventListener('click', e => {
     document.querySelectorAll('.export-menu').forEach(m => m.classList.remove('show'));
   }
 });
+
+function noteMatchesFolderFilter(n) {
+  if (activeFolder === FOLDER_ALL) return true;
+  if (activeFolder === FOLDER_UNFILED) return !n.folder_id;
+  if (activeFolder === FOLDER_TEMPLATE) return isTemplateFolderId(n.folder_id);
+  return n.folder_id === activeFolder;
+}
 
 function folderNameFor(folderId) {
   if (!folderId) return '';
@@ -757,7 +798,7 @@ async function callClaude(task, payload) {
 function getFilteredForAI() {
   return notes.filter(n =>
     (!activeTheme || (n.theme || []).includes(activeTheme)) &&
-    (activeFolder === FOLDER_ALL || (activeFolder === FOLDER_UNFILED ? !n.folder_id : n.folder_id === activeFolder))
+    noteMatchesFolderFilter(n)
   );
 }
 
@@ -1492,17 +1533,19 @@ function selectFolder(id) {
 }
 
 function renderFolders() {
-  const sorted = [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const sorted = userFolders();
 
   const desktop = document.getElementById('folder-list');
   desktop.innerHTML = '';
   sorted.forEach((f, i) => desktop.appendChild(buildFolderRow(f, false, i === 0, i === sorted.length - 1)));
+  desktop.appendChild(buildFolderRow({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }, true));
   desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
   desktop.appendChild(buildFolderRow({ id: FOLDER_ALL, name: 'すべて' }, true));
 
   const mobile = document.getElementById('mob-folder-list');
   mobile.innerHTML = '';
   sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
+  mobile.appendChild(buildFolderChip({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }));
   mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
   mobile.appendChild(buildFolderChip({ id: FOLDER_ALL, name: 'すべて' }));
 
@@ -1521,13 +1564,17 @@ function renderFolderSelect(currentFolderId) {
   unfiled.value = '';
   unfiled.textContent = '未分類';
   sel.appendChild(unfiled);
-  [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).forEach(f => {
+  userFolders().forEach(f => {
     const opt = document.createElement('option');
     opt.value = f.id;
     opt.textContent = f.name;
     sel.appendChild(opt);
   });
-  sel.value = currentFolderId || '';
+  const tplOpt = document.createElement('option');
+  tplOpt.value = FOLDER_TEMPLATE;
+  tplOpt.textContent = TEMPLATE_FOLDER_NAME;
+  sel.appendChild(tplOpt);
+  sel.value = isTemplateFolderId(currentFolderId) ? FOLDER_TEMPLATE : (currentFolderId || '');
 }
 
 function onFolderSelectChange() {
@@ -1608,7 +1655,8 @@ function startRenameFolder(folder, nameEl) {
   const commit = async () => {
     if (committed) return;
     committed = true;
-    const newName = input.value.trim() || folder.name;
+    let newName = input.value.trim() || folder.name;
+    if (newName === TEMPLATE_FOLDER_NAME) newName = folder.name; // reserved for the built-in folder
     if (newName !== folder.name) {
       folder.name = newName;
       try { await sb.from('folders').update({ name: newName }).eq('id', folder.id); }
@@ -1624,7 +1672,7 @@ function startRenameFolder(folder, nameEl) {
 }
 
 async function moveFolder(folder, direction) {
-  const sorted = [...folders].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const sorted = userFolders(); // the built-in テンプレ row isn't part of the user's ordering
   const i = sorted.findIndex(f => f.id === folder.id);
   const j = i + direction;
   if (i < 0 || j < 0 || j >= sorted.length) return;
@@ -1667,6 +1715,7 @@ function onFolderAddKeydown(e) {
 async function createFolder(name) {
   name = name.trim();
   if (!name || !uid) return;
+  if (name === TEMPLATE_FOLDER_NAME) { selectFolder(FOLDER_TEMPLATE); return; } // already built in
   const maxOrder = folders.reduce((m,f) => Math.max(m, f.sort_order ?? 0), 0);
   try {
     const { data, error } = await sb.from('folders').insert({ user_id: uid, name, sort_order: maxOrder + 1 }).select().single();
@@ -1681,8 +1730,13 @@ async function createFolder(name) {
 async function assignToFolder(id, folderId) {
   const n = notes.find(x => x.id === id);
   if (!n) return;
+  if (folderId === FOLDER_TEMPLATE) {
+    try { folderId = await ensureTemplateFolder(); }
+    catch(e) { console.error('template folder unavailable', e); return; }
+  }
   const siblings = notes.filter(x => x.id !== id && (x.folder_id || null) === (folderId || null) && !!x.pinned === !!n.pinned);
   n.folder_id = folderId;
+  if (id === currentId && !inTrash) renderFolderSelect(folderId || null);
   n.sort_order = siblings.length ? Math.max(...siblings.map(x => x.sort_order ?? 0)) + 1 : 0;
   renderGrid();
   try { await sb.from('notes').update({ folder_id: folderId, sort_order: n.sort_order }).eq('id', id); }
@@ -1696,7 +1750,7 @@ function getFiltered() {
   list = list.filter(n =>
     (!q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q)) &&
     (!activeTheme || inTrash || (n.theme||[]).includes(activeTheme)) &&
-    (activeFolder === FOLDER_ALL || inTrash || (activeFolder === FOLDER_UNFILED ? !n.folder_id : n.folder_id === activeFolder))
+    (inTrash || noteMatchesFolderFilter(n))
   );
   return list;
 }
@@ -2655,23 +2709,149 @@ async function doSave() {
   }
 }
 
-async function newNote() {
+/* ── New-note templates ──
+   A template is simply a normal note filed under the built-in "テンプレ"
+   entry (above 未分類 in the folder list) — so editing one is editing a note.
+   The ＋ button lists them (plus a blank option); picking one creates a fresh
+   note from its title/content/tags with {{日付}} etc. filled in. With no
+   templates yet, ＋ goes straight to a blank note like before. */
+function isTemplateName(f) { return (f.name || '').trim() === TEMPLATE_FOLDER_NAME; }
+function templateFolders() { return folders.filter(isTemplateName); }
+function isTemplateFolderId(id) { return !!id && templateFolders().some(f => f.id === id); }
+function userFolders() {
+  return folders.filter(f => !isTemplateName(f)).sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+/* The one folder row new template notes get filed under. If two devices ever
+   both created the row (first use at the same moment), every folder with this
+   name still counts as テンプレ, and the smallest id is the one used from then on. */
+function primaryTemplateFolder() {
+  return templateFolders().sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1))[0] || null;
+}
+let templateFolderPromise = null;
+function ensureTemplateFolder() {
+  const existing = primaryTemplateFolder();
+  if (existing) return Promise.resolve(existing.id);
+  if (!templateFolderPromise) {
+    templateFolderPromise = (async () => {
+      try {
+        await refreshFolders(); // maybe another device already created it
+        const again = primaryTemplateFolder();
+        if (again) return again.id;
+        const { data, error } = await sb.from('folders').insert({ user_id: uid, name: TEMPLATE_FOLDER_NAME, sort_order: -1 }).select().single();
+        if (error) throw error;
+        folders.push(data);
+        renderFolders();
+        return data.id;
+      } finally { templateFolderPromise = null; }
+    })();
+  }
+  return templateFolderPromise;
+}
+function getTemplates() {
+  const ids = new Set(templateFolders().map(f => f.id));
+  if (!ids.size) return [];
+  return notes.filter(n => ids.has(n.folder_id))
+    .sort((a, b) => ((a.sort_order ?? 0) - (b.sort_order ?? 0)) || (a.title || '').localeCompare(b.title || '', 'ja'));
+}
+
+/* {{日付}} -> 10月21日   {{年月日}} -> 2026年10月21日   {{曜日}} -> 水   {{時刻}} -> 09:05
+   Anything else in {{ }} is left untouched. Only the NEW note is filled in;
+   the template itself keeps its placeholders. */
+function fillTemplatePlaceholders(text, d) {
+  d = d || new Date();
+  const vals = {
+    '日付': (d.getMonth() + 1) + '月' + d.getDate() + '日',
+    '年月日': d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日',
+    '曜日': '日月火水木金土'[d.getDay()],
+    '時刻': String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+  };
+  return String(text || '').replace(/\{\{\s*(日付|年月日|曜日|時刻)\s*\}\}/g, (_, k) => vals[k]);
+}
+
+function onNewClick() {
+  if (inTrash) return;
+  const tpls = getTemplates();
+  if (!tpls.length) { newNote(); return; }
+  openTemplatePicker(tpls);
+}
+
+function openTemplatePicker(tpls) {
+  const list = document.getElementById('tpl-list');
+  list.innerHTML = '';
+  const addItem = (title, sub, cls, onPick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tpl-item' + (cls ? ' ' + cls : '');
+    const t = document.createElement('span'); t.className = 'tpl-item-title'; t.textContent = title;
+    b.appendChild(t);
+    if (sub) { const s = document.createElement('span'); s.className = 'tpl-item-sub'; s.textContent = sub; b.appendChild(s); }
+    b.onclick = () => { closeTemplatePicker(); onPick(); };
+    list.appendChild(b);
+    return b;
+  };
+  const first = addItem('📝 空白のメモ', '', 'blank', () => newNote());
+  tpls.forEach(tpl => {
+    const title = fillTemplatePlaceholders(tpl.title || '');
+    const firstLine = fillTemplatePlaceholders((tpl.content || '').split('\n').find(l => l.trim()) || '');
+    addItem(title || '(無題のテンプレ)', firstLine, '', () => createFromTemplate(tpl));
+  });
+  document.getElementById('tpl-bg').classList.add('show');
+  first.focus(); // Enter right away = plain blank note
+}
+function closeTemplatePicker() {
+  document.getElementById('tpl-bg').classList.remove('show');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('tpl-bg').classList.contains('show')) closeTemplatePicker();
+});
+
+function createFromTemplate(tpl) {
+  const now = new Date();
+  // A note made while browsing テンプレ must not land back in it and turn into
+  // another template; elsewhere it follows the current folder, as usual.
+  const realFolder = activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED && activeFolder !== FOLDER_TEMPLATE;
+  newNote({
+    title: fillTemplatePlaceholders(tpl.title || '', now),
+    content: fillTemplatePlaceholders(tpl.content || '', now),
+    theme: tpl.theme || [],
+    folderId: realFolder ? activeFolder : null
+  });
+}
+
+/* `init` (optional): { title, content, theme, folderId } to start from — used
+   when creating from a template. Without it this is the plain blank new note. */
+async function newNote(init) {
+  const t = init || {};
+  const title = t.title || '', content = t.content || '', theme = t.theme ? [...t.theme] : [];
   const id = crypto.randomUUID();
   const minOrder = notes.reduce((m,n) => Math.min(m, n.sort_order ?? 0), 0);
-  const folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
+  let folderId;
+  if (t.folderId !== undefined) folderId = t.folderId;
+  else if (activeFolder === FOLDER_TEMPLATE) {
+    // A blank note made while browsing テンプレ is a new template.
+    try { folderId = await ensureTemplateFolder(); } catch(e) { folderId = null; }
+  } else folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
-    id, user_id: uid, title: '', content: '', theme: [], pinned: false, folder_id: folderId,
+    id, user_id: uid, title, content, theme, pinned: false, folder_id: folderId,
     sort_order: minOrder - 1, updated_at: new Date().toISOString(),
     __pendingCreate: true
   };
   notes.unshift(localNote);
+  renderThemes();
   renderGrid();
   openNote(id);
-  document.getElementById('e-title').focus();
+  if (!title) {
+    document.getElementById('e-title').focus();
+  } else {
+    // Created from a template: land in the body, caret after the template text.
+    const body = document.getElementById('e-input');
+    body.focus();
+    body.setSelectionRange(body.value.length, body.value.length);
+  }
 
   try {
     const { data, error } = await sb.from('notes').insert({
-      id, user_id: uid, title: '', content: '', theme: [], last_writer_session: sessionId, pinned: false, folder_id: folderId,
+      id, user_id: uid, title, content, theme, last_writer_session: sessionId, pinned: false, folder_id: folderId,
       sort_order: localNote.sort_order, updated_at: localNote.updated_at
     }).select().single();
     if (error) throw error;
@@ -2681,7 +2861,7 @@ async function newNote() {
     clearPendingDraft(id); // the row now exists — any draft written in the meantime becomes a normal 'update' on the next edit
   } catch(e) {
     // Offline — queue this as a pending creation; flushPendingEdits() inserts it once back online.
-    savePendingDraft(id, { type: 'create', title: '', content: '', theme: [], baseUpdatedAt: null, sort_order: localNote.sort_order, pinned: false, folder_id: folderId });
+    savePendingDraft(id, { type: 'create', title, content, theme, baseUpdatedAt: null, sort_order: localNote.sort_order, pinned: false, folder_id: folderId });
     renderGrid();
   }
 }
