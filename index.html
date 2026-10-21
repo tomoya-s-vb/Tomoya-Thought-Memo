@@ -2849,7 +2849,7 @@ function openTemplatePicker(tpls) {
     list.appendChild(b);
     return b;
   };
-  const first = addItem('📝 空白のメモ', '', 'blank', () => newNote());
+  const first = addItem('空白のメモ', '', 'blank', () => newNote());
   tpls.forEach(tpl => {
     const title = fillTemplatePlaceholders(tpl.title || '');
     const firstLine = fillTemplatePlaceholders((tpl.content || '').split('\n').find(l => l.trim()) || '');
