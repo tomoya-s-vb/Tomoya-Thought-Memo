@@ -290,6 +290,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .tpl-item-title { font-size: 13.5px; font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tpl-item-sub { font-size: 11.5px; color: var(--text3); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tpl-item.blank { border-style: dashed; }
+.tpl-item.cancel { background: none; color: var(--text2); align-items: center; }
 #tpl-hint { font-size: 11px; color: var(--text3); line-height: 1.6; margin: 12px 4px 0; }
 
 /* Shared full-width sidebar action button (synthesize) */
@@ -2957,6 +2958,7 @@ function openTemplatePicker(tpls) {
     const firstLine = fillTemplatePlaceholders((tpl.content || '').split('\n').find(l => l.trim()) || '');
     addItem(title || '(無題のテンプレ)', firstLine, '', () => createFromTemplate(tpl));
   });
+  addItem('キャンセル', '', 'cancel', () => {});
   document.getElementById('tpl-bg').classList.add('show');
   placePopupNear(document.getElementById('tpl-panel'), document.getElementById('new-btn'), false);
   first.focus(); // Enter right away = plain blank note
@@ -3179,6 +3181,15 @@ document.addEventListener('keydown', e => {
     let i = items.indexOf(document.activeElement);
     i = k === 'ArrowDown' ? (i + 1) % items.length : (i <= 0 ? items.length - 1 : i - 1);
     items[i].focus();
+    return;
+  }
+  if (dlgOpen && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown')) {
+    e.preventDefault();
+    const btns = [...document.querySelectorAll('#dialog .d-btns button')];
+    let i = btns.indexOf(document.activeElement);
+    const back = k === 'ArrowLeft' || k === 'ArrowUp';
+    i = i < 0 ? btns.length - 1 : (i + (back ? -1 : 1) + btns.length) % btns.length;
+    btns[i].focus();
     return;
   }
   if (dlgOpen && k === 'Enter' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) {
