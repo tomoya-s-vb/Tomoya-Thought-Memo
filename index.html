@@ -222,6 +222,11 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   color: var(--text); outline: none; overflow-y: auto;
 }
 #e-input::placeholder { color: var(--text3); }
+/* Clickable-links view (🔗URLs folder notes) */
+#e-view { display: none; flex: 1; padding: 20px 24px; font-size: 14px; line-height: 1.85; font-family: var(--mono); font-weight: 300; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; }
+#e-view a { color: var(--green); text-decoration: underline; }
+#editor-card.url-view #e-view { display: block; }
+#editor-card.url-view #e-input, #editor-card.url-view #e-hl { display: none !important; }
 
 /* Dialog */
 #dialog-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; align-items: center; justify-content: center; }
@@ -399,7 +404,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   #e-charcount { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
-  #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #e-hl, #login-email, #login-pass { font-size: 16px; }
+  #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #e-hl, #e-view, #login-email, #login-pass { font-size: 16px; }
 }
 </style>
 </head>
@@ -448,7 +453,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
           </div>
         </div>
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
-        <button class="hbtn" id="new-btn" title="新規" onclick="onNewClick()">＋</button>
+        <button class="hbtn" id="new-btn" title="新規 (Alt+N)" onclick="onNewClick()">＋</button>
       </div>
     </div>
     <div id="s-search">
@@ -520,11 +525,12 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
         <span id="e-charcount">0字</span>
-        <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">🎯<span class="ebtn-label">集中モード</span></button>
+        <button class="ebtn" id="btn-edit" onclick="toggleUrlEdit()" style="display:none" title="編集 / リンク表示の切り替え">🖊<span class="ebtn-label">編集</span></button>
+        <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">🎯<span class="ebtn-label">集中</span></button>
         <button class="ebtn" id="btn-links" onclick="showLinksPopup()" title="リンク">🔗<span class="ebtn-label">リンク</span></button>
         <button class="ebtn" id="btn-duplicate" onclick="duplicateCurrentNote()" title="複製">📄<span class="ebtn-label">複製</span></button>
         <button class="ebtn" id="btn-organize" onclick="organizeNote()" title="整理">✨<span class="ebtn-label">整理</span></button>
-        <button class="ebtn del" id="btn-del" onclick="askDelete()" title="削除">🗑️<span class="ebtn-label">削除</span></button>
+        <button class="ebtn del" id="btn-del" onclick="askDelete()" title="削除 (Alt+Delete)">🗑️<span class="ebtn-label">削除</span></button>
         <button class="ebtn res" id="btn-res" onclick="restoreNote()" style="display:none" title="復元">♻️<span class="ebtn-label">復元</span></button>
       </div>
       <div id="e-conflict-row">
@@ -544,6 +550,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
       <div id="e-body">
         <div id="e-wrap">
+          <div id="e-view"></div>
           <div id="e-hl" aria-hidden="true"></div>
           <textarea id="e-input"
             placeholder="ここにメモを書いてください…"
@@ -677,8 +684,12 @@ const TEMPLATE_FOLDER_NAME = 'テンプレ';
    always listed in date order instead of the normal sort — see dailySortKey. */
 const FOLDER_DAILY = '__daily__';
 const DAILY_FOLDER_NAME = '🌟Daily';
+/* FOLDER_URLS: third built-in, right under Daily. Same mechanics and same
+   title ordering; its notes open in a clickable-links view (see setUrlView). */
+const FOLDER_URLS = '__urls__';
+const URLS_FOLDER_NAME = '🔗URLs';
 let folders = [];
-let activeFolder = FOLDER_ALL;
+let activeFolder = FOLDER_DAILY; // default view after (re)load
 
 /* ── Auth ──
    Realtime with RLS needs the session's access token explicitly handed to the
@@ -729,6 +740,7 @@ function noteMatchesFolderFilter(n) {
   if (activeFolder === FOLDER_UNFILED) return !n.folder_id;
   if (activeFolder === FOLDER_TEMPLATE) return isTemplateFolderId(n.folder_id);
   if (activeFolder === FOLDER_DAILY) return isDailyFolderId(n.folder_id);
+  if (activeFolder === FOLDER_URLS) return isUrlsFolderId(n.folder_id);
   return n.folder_id === activeFolder;
 }
 
@@ -1085,7 +1097,7 @@ async function boot() {
     wireFoldersRealtime();
     flushPendingEdits();
     if (new URLSearchParams(location.search).get('new') === '1' && !window.__autoNewDone) {
-      window.__autoNewDone = true; newNote();
+      window.__autoNewDone = true; activeFolder = FOLDER_ALL; renderFolders(); renderGrid(); newNote();
     } else {
       autoOpenFirstForFilter();
     }
@@ -1364,6 +1376,7 @@ function refreshOpenEditorIfIdle() {
   if (!note) return;
   document.getElementById('e-title').value = note.title || '';
   document.getElementById('e-input').value = note.content || '';
+  if (urlViewMode) renderUrlView();
   currentTags = [...(note.theme || [])];
   renderTagChips();
   updateCharCount();
@@ -1544,6 +1557,7 @@ function renderFolders() {
   const desktop = document.getElementById('folder-list');
   desktop.innerHTML = '';
   desktop.appendChild(buildFolderRow({ id: FOLDER_DAILY, name: DAILY_FOLDER_NAME }, true));
+  desktop.appendChild(buildFolderRow({ id: FOLDER_URLS, name: URLS_FOLDER_NAME }, true));
   sorted.forEach((f, i) => desktop.appendChild(buildFolderRow(f, false, i === 0, i === sorted.length - 1)));
   desktop.appendChild(buildFolderRow({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }, true));
   desktop.appendChild(buildFolderRow({ id: FOLDER_UNFILED, name: '未分類' }, true));
@@ -1552,6 +1566,7 @@ function renderFolders() {
   const mobile = document.getElementById('mob-folder-list');
   mobile.innerHTML = '';
   mobile.appendChild(buildFolderChip({ id: FOLDER_DAILY, name: DAILY_FOLDER_NAME }));
+  mobile.appendChild(buildFolderChip({ id: FOLDER_URLS, name: URLS_FOLDER_NAME }));
   sorted.forEach(f => mobile.appendChild(buildFolderChip(f)));
   mobile.appendChild(buildFolderChip({ id: FOLDER_TEMPLATE, name: TEMPLATE_FOLDER_NAME }));
   mobile.appendChild(buildFolderChip({ id: FOLDER_UNFILED, name: '未分類' }));
@@ -1576,6 +1591,10 @@ function renderFolderSelect(currentFolderId) {
   dailyOpt.value = FOLDER_DAILY;
   dailyOpt.textContent = DAILY_FOLDER_NAME;
   sel.appendChild(dailyOpt);
+  const urlsOpt = document.createElement('option');
+  urlsOpt.value = FOLDER_URLS;
+  urlsOpt.textContent = URLS_FOLDER_NAME;
+  sel.appendChild(urlsOpt);
   userFolders().forEach(f => {
     const opt = document.createElement('option');
     opt.value = f.id;
@@ -1586,7 +1605,8 @@ function renderFolderSelect(currentFolderId) {
   tplOpt.value = FOLDER_TEMPLATE;
   tplOpt.textContent = TEMPLATE_FOLDER_NAME;
   sel.appendChild(tplOpt);
-  sel.value = isTemplateFolderId(currentFolderId) ? FOLDER_TEMPLATE : isDailyFolderId(currentFolderId) ? FOLDER_DAILY : (currentFolderId || '');
+  sel.value = isTemplateFolderId(currentFolderId) ? FOLDER_TEMPLATE : isDailyFolderId(currentFolderId) ? FOLDER_DAILY : isUrlsFolderId(currentFolderId) ? FOLDER_URLS : (currentFolderId || '');
+  updateUrlModeUI();
 }
 
 function onFolderSelectChange() {
@@ -1668,7 +1688,7 @@ function startRenameFolder(folder, nameEl) {
     if (committed) return;
     committed = true;
     let newName = input.value.trim() || folder.name;
-    if (newName === TEMPLATE_FOLDER_NAME || newName === DAILY_FOLDER_NAME) newName = folder.name; // reserved for the built-in folder
+    if (newName === TEMPLATE_FOLDER_NAME || newName === DAILY_FOLDER_NAME || newName === URLS_FOLDER_NAME) newName = folder.name; // reserved for the built-in folder
     if (newName !== folder.name) {
       folder.name = newName;
       try { await sb.from('folders').update({ name: newName }).eq('id', folder.id); }
@@ -1729,6 +1749,7 @@ async function createFolder(name) {
   if (!name || !uid) return;
   if (name === TEMPLATE_FOLDER_NAME) { selectFolder(FOLDER_TEMPLATE); return; } // already built in
   if (name === DAILY_FOLDER_NAME) { selectFolder(FOLDER_DAILY); return; }
+  if (name === URLS_FOLDER_NAME) { selectFolder(FOLDER_URLS); return; }
   const maxOrder = folders.reduce((m,f) => Math.max(m, f.sort_order ?? 0), 0);
   try {
     const { data, error } = await sb.from('folders').insert({ user_id: uid, name, sort_order: maxOrder + 1 }).select().single();
@@ -1746,6 +1767,9 @@ async function assignToFolder(id, folderId) {
   if (folderId === FOLDER_TEMPLATE) {
     try { folderId = await ensureTemplateFolder(); }
     catch(e) { console.error('template folder unavailable', e); return; }
+  } else if (folderId === FOLDER_URLS) {
+    try { folderId = await ensureUrlsFolder(); }
+    catch(e) { console.error('urls folder unavailable', e); return; }
   } else if (folderId === FOLDER_DAILY) {
     try { folderId = await ensureDailyFolder(); }
     catch(e) { console.error('daily folder unavailable', e); return; }
@@ -1779,7 +1803,7 @@ function isMobileLayout() {
 }
 
 function sortGroup(list) {
-  if (activeFolder === FOLDER_DAILY && !inTrash) return list.sort(dailySortCompare);
+  if ((activeFolder === FOLDER_DAILY || activeFolder === FOLDER_URLS) && !inTrash) return list.sort(dailySortCompare);
   if (activeFolder === FOLDER_TEMPLATE && !inTrash) return list.sort(nameSortCompare);
   const mode = isMobileLayout() ? 'auto' : sortMode;
   if (mode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
@@ -2048,7 +2072,7 @@ async function togglePin(id) {
 let ptrDrag = null; // { id, sourceItem }
 
 function wireDrag(item, n) {
-  if (inTrash || activeFolder === FOLDER_DAILY || activeFolder === FOLDER_TEMPLATE) return; // fixed orders
+  if (inTrash || activeFolder === FOLDER_DAILY || activeFolder === FOLDER_URLS || activeFolder === FOLDER_TEMPLATE) return; // fixed orders
   if (!isMobileLayout() && sortMode !== 'manual') return; // desktop: reordering only in manual mode
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
@@ -2237,6 +2261,10 @@ function openNote(id) {
 
   document.getElementById('e-folder-row').style.display = inTrash ? 'none' : 'flex';
   renderFolderSelect(note.folder_id || null);
+
+  setUrlView(false);
+  updateUrlModeUI();
+  if (!inTrash && isUrlsFolderId(note.folder_id) && document.getElementById('e-input').value.trim()) setUrlView(true);
 
   updateCharCount();
   setStatus(pending ? '未送信の変更があります' : '');
@@ -2528,9 +2556,57 @@ function showLinksPopup() {
       ).join('')
     : '<div class="links-empty">このメモにリンクは見つかりませんでした</div>';
   document.getElementById('links-bg').classList.add('show');
+  placePopupNear(document.getElementById('links-panel'), document.getElementById('btn-links'), true);
 }
 function closeLinksPopup() {
   document.getElementById('links-bg').classList.remove('show');
+}
+
+/* ── 🔗URLs notes: clickable-links view ⇄ normal edit view (🖊編集 button) ── */
+let urlViewMode = false;
+function linkifyHtml(text) {
+  const re = /https?:\/\/[^\s<>"'　]+/g;
+  const trailing = /[)\]}>,.;:!?、。」』】]+$/;
+  let out = '', last = 0, m;
+  while ((m = re.exec(text))) {
+    const raw = m[0], url = raw.replace(trailing, '');
+    out += esc(text.slice(last, m.index)) +
+      '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>' +
+      esc(raw.slice(url.length));
+    last = m.index + raw.length;
+  }
+  return out + esc(text.slice(last));
+}
+function renderUrlView() {
+  document.getElementById('e-view').innerHTML = linkifyHtml(document.getElementById('e-input').value || '');
+}
+function currentNoteInUrls() {
+  if (!currentId || inTrash) return false;
+  const n = notes.find(x => x.id === currentId);
+  return !!n && isUrlsFolderId(n.folder_id);
+}
+function setUrlView(on) {
+  urlViewMode = !!on;
+  document.getElementById('editor-card').classList.toggle('url-view', urlViewMode);
+  document.getElementById('e-title').readOnly = urlViewMode;
+  document.getElementById('btn-edit').className = urlViewMode ? 'ebtn' : 'ebtn active';
+  if (urlViewMode) { renderUrlView(); document.getElementById('e-view').scrollTop = 0; }
+}
+function updateUrlModeUI() {
+  const u = currentNoteInUrls();
+  const btn = document.getElementById('btn-edit');
+  btn.style.display = u ? '' : 'none';
+  if (!u && urlViewMode) setUrlView(false);
+  if (u && !urlViewMode) btn.className = 'ebtn active';
+}
+function toggleUrlEdit() {
+  if (!currentNoteInUrls()) return;
+  setUrlView(!urlViewMode);
+  if (!urlViewMode) {
+    const ta = document.getElementById('e-input');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
 }
 
 function updateCharCount() {
@@ -2734,6 +2810,32 @@ async function doSave() {
    note from its title/content/tags with {{日付}} etc. filled in. With no
    templates yet, ＋ goes straight to a blank note like before. */
 function isTemplateName(f) { return (f.name || '').trim() === TEMPLATE_FOLDER_NAME; }
+function isUrlsName(f) { return (f.name || '').trim() === URLS_FOLDER_NAME; }
+function urlsFolders() { return folders.filter(isUrlsName); }
+function isUrlsFolderId(id) { return !!id && urlsFolders().some(f => f.id === id); }
+function primaryUrlsFolder() {
+  return urlsFolders().sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1))[0] || null;
+}
+let urlsFolderPromise = null;
+function ensureUrlsFolder() {
+  const existing = primaryUrlsFolder();
+  if (existing) return Promise.resolve(existing.id);
+  if (!urlsFolderPromise) {
+    urlsFolderPromise = (async () => {
+      try {
+        await refreshFolders();
+        const again = primaryUrlsFolder();
+        if (again) return again.id;
+        const { data, error } = await sb.from('folders').insert({ user_id: uid, name: URLS_FOLDER_NAME, sort_order: -3 }).select().single();
+        if (error) throw error;
+        folders.push(data);
+        renderFolders();
+        return data.id;
+      } finally { urlsFolderPromise = null; }
+    })();
+  }
+  return urlsFolderPromise;
+}
 function isDailyName(f) { return (f.name || '').trim() === DAILY_FOLDER_NAME; }
 function dailyFolders() { return folders.filter(isDailyName); }
 function isDailyFolderId(id) { return !!id && dailyFolders().some(f => f.id === id); }
@@ -2779,7 +2881,7 @@ function dailySortCompare(a, b) {
 function templateFolders() { return folders.filter(isTemplateName); }
 function isTemplateFolderId(id) { return !!id && templateFolders().some(f => f.id === id); }
 function userFolders() {
-  return folders.filter(f => !isTemplateName(f) && !isDailyName(f)).sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return folders.filter(f => !isTemplateName(f) && !isDailyName(f) && !isUrlsName(f)).sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 /* The one folder row new template notes get filed under. If two devices ever
    both created the row (first use at the same moment), every folder with this
@@ -2870,12 +2972,12 @@ function createFromTemplate(tpl) {
   const now = new Date();
   // A note made while browsing テンプレ must not land back in it and turn into
   // another template; elsewhere it follows the current folder, as usual.
-  const realFolder = activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED && activeFolder !== FOLDER_TEMPLATE && activeFolder !== FOLDER_DAILY;
+  const realFolder = activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED && activeFolder !== FOLDER_TEMPLATE && activeFolder !== FOLDER_DAILY && activeFolder !== FOLDER_URLS;
   newNote({
     title: fillTemplatePlaceholders(tpl.title || '', now),
     content: fillTemplatePlaceholders(tpl.content || '', now),
     theme: tpl.theme || [],
-    folderId: realFolder ? activeFolder : (activeFolder === FOLDER_DAILY ? undefined : null)
+    folderId: realFolder ? activeFolder : ((activeFolder === FOLDER_DAILY || activeFolder === FOLDER_URLS) ? undefined : null)
   });
 }
 
@@ -2893,6 +2995,8 @@ async function newNote(init) {
     try { folderId = await ensureTemplateFolder(); } catch(e) { folderId = null; }
   } else if (activeFolder === FOLDER_DAILY) {
     try { folderId = await ensureDailyFolder(); } catch(e) { folderId = null; }
+  } else if (activeFolder === FOLDER_URLS) {
+    try { folderId = await ensureUrlsFolder(); } catch(e) { folderId = null; }
   } else folderId = (activeFolder !== FOLDER_ALL && activeFolder !== FOLDER_UNFILED) ? activeFolder : null;
   const localNote = {
     id, user_id: uid, title, content, theme, pinned: false, folder_id: folderId,
@@ -2903,14 +3007,10 @@ async function newNote(init) {
   renderThemes();
   renderGrid();
   openNote(id);
-  if (!title) {
-    document.getElementById('e-title').focus();
-  } else {
-    // Created from a template: land in the body, caret after the template text.
-    const body = document.getElementById('e-input');
-    body.focus();
-    body.setSelectionRange(body.value.length, body.value.length);
-  }
+  // Always land in the title (caret at its end); Enter there moves on to the body.
+  const titleEl = document.getElementById('e-title');
+  titleEl.focus();
+  titleEl.setSelectionRange(titleEl.value.length, titleEl.value.length);
 
   try {
     const { data, error } = await sb.from('notes').insert({
@@ -2950,6 +3050,7 @@ function placePopupNear(panel, anchor, alignRight) {
 function askDelete() {
   document.getElementById('dialog-bg').className = 'show';
   placePopupNear(document.getElementById('dialog'), document.getElementById('btn-del'), true);
+  const ok = document.querySelector('#dialog .confirm'); if (ok) ok.focus(); // Enter = move to trash
 }
 function closeDialog() { document.getElementById('dialog-bg').className = ''; }
 
@@ -3051,6 +3152,40 @@ document.getElementById('links-bg').addEventListener('click', e => {
   if (e.target === document.getElementById('links-bg')) closeLinksPopup();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDialog(); closeLinksPopup(); } });
+
+/* Keyboard shortcuts
+   Alt+N       new note → ↑/↓ choose a template → Enter
+   Alt+Delete  delete the open note → Enter to confirm
+   (Alt rather than Ctrl: browsers reserve Ctrl+N for "new window".) */
+document.addEventListener('keydown', e => {
+  if (!uid || e.isComposing || e.keyCode === 229) return;
+  const tplOpen = document.getElementById('tpl-bg').classList.contains('show');
+  const dlgOpen = document.getElementById('dialog-bg').classList.contains('show');
+  const k = e.key;
+  if ((k === 'n' || k === 'N') && !e.shiftKey && e.altKey && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    if (!tplOpen && !dlgOpen && !inTrash) onNewClick();
+    return;
+  }
+  if (k === 'Delete' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    e.preventDefault();
+    if (!tplOpen && !dlgOpen && currentId && !inTrash) askDelete();
+    return;
+  }
+  if (tplOpen && (k === 'ArrowDown' || k === 'ArrowUp')) {
+    e.preventDefault();
+    const items = [...document.querySelectorAll('#tpl-list .tpl-item')];
+    if (!items.length) return;
+    let i = items.indexOf(document.activeElement);
+    i = k === 'ArrowDown' ? (i + 1) % items.length : (i <= 0 ? items.length - 1 : i - 1);
+    items[i].focus();
+    return;
+  }
+  if (dlgOpen && k === 'Enter' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) {
+    e.preventDefault();
+    doDelete();
+  }
+});
 
 /* Ctrl/Cmd+C or +X with no selection acts on the whole current line, like
    many code editors — otherwise plain copy/cut only work on an explicit
