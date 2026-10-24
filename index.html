@@ -2565,18 +2565,62 @@ function closeLinksPopup() {
 
 /* ── 🔗URLs notes: clickable-links view ⇄ normal edit view (🖊編集 button) ── */
 let urlViewMode = false;
+/* View-mode rendering: show titles, hide raw URLs. Recognised (all other text
+   stays as typed; the edit view always shows the raw text):
+     [タイトル](https://…)            → タイトル is the link
+     タイトル⏎https://…               → the title line is the link, the URL line is hidden
+     タイトル： https://…  (same line) → タイトル is the link
+     bare https://… elsewhere          → shown as a plain link */
 function linkifyHtml(text) {
-  const re = /https?:\/\/[^\s<>"'　]+/g;
+  const urlRe = /https?:\/\/[^\s<>"'　]+/g;
   const trailing = /[)\]}>,.;:!?、。」』】]+$/;
-  let out = '', last = 0, m;
-  while ((m = re.exec(text))) {
-    const raw = m[0], url = raw.replace(trailing, '');
-    out += esc(text.slice(last, m.index)) +
-      '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>' +
-      esc(raw.slice(url.length));
-    last = m.index + raw.length;
+  const anchor = (label, url) =>
+    '<a href="' + esc(url) + '" title="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(label) + '</a>';
+  const bareLinks = t => {
+    let out = '', last = 0, m;
+    urlRe.lastIndex = 0;
+    while ((m = urlRe.exec(t))) {
+      const raw = m[0], url = raw.replace(trailing, '');
+      out += esc(t.slice(last, m.index)) + anchor(url, url) + esc(raw.slice(url.length));
+      last = m.index + raw.length;
+    }
+    return out + esc(t.slice(last));
+  };
+  const bareLine = l => /^\s*https?:\/\/[^\s<>"'　]+\s*$/.test(l);
+  const hasUrl = l => /https?:\/\//.test(l);
+  const renderLine = line => {
+    const md = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g;
+    if (md.test(line)) {
+      md.lastIndex = 0;
+      let out = '', last = 0, m;
+      while ((m = md.exec(line))) {
+        out += bareLinks(line.slice(last, m.index)) + anchor(m[1], m[2]);
+        last = m.index + m[0].length;
+      }
+      return out + bareLinks(line.slice(last));
+    }
+    const urls = line.match(urlRe) || [];
+    if (urls.length === 1) {
+      const idx = line.indexOf(urls[0]);
+      const url = urls[0].replace(trailing, '');
+      const prefix = line.slice(0, idx), after = line.slice(idx + url.length);
+      const label = prefix.trim().replace(/[:：\-–—|｜\s]+$/, '');
+      if (label && !after.replace(trailing, '').trim()) return esc(prefix.match(/^\s*/)[0]) + anchor(label, url);
+    }
+    return bareLinks(line);
+  };
+  const lines = text.split('\n'), out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() && !hasUrl(line) && i + 1 < lines.length && bareLine(lines[i + 1])) {
+      const url = lines[i + 1].trim().replace(trailing, '');
+      out.push(esc(line.match(/^\s*/)[0]) + anchor(line.trim(), url));
+      i++;
+      continue;
+    }
+    out.push(renderLine(line));
   }
-  return out + esc(text.slice(last));
+  return out.join('\n');
 }
 function renderUrlView() {
   document.getElementById('e-view').innerHTML = linkifyHtml(document.getElementById('e-input').value || '');
