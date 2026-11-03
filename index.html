@@ -109,10 +109,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .search-clear:hover { background: var(--soft); color: var(--text); }
 .search-wrap.has-text .search-clear { display: flex; }
 
-#sort-row { padding: 0 12px 10px; display:flex; gap:6px; }
-#preview-row { padding: 0 12px 10px; display:flex; gap:6px; }
-.sortbtn { flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text2); font-family:var(--mono); font-size:11px; cursor:pointer; transition:.15s; }
-.sortbtn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 
 #s-conn { margin: 0; font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid var(--border); color: var(--text3); display: inline-flex; align-items: center; gap: 5px; width: fit-content; }
 #s-conn.ok { color: var(--green); background: var(--greenbg); border-color: var(--greenbg); }
@@ -332,8 +328,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row.trashed { opacity: .6; }
 .row.dragging { opacity: .35; }
 .row.drag-enabled { touch-action: pan-y; }
-.row.drop-before { box-shadow: 0 -3px 0 var(--green) inset; }
-.row.drop-after  { box-shadow: 0  3px 0 var(--green) inset; }
 /* row-main holds title (+ the optional preview line below it) and is the
    only element that grows, so long titles get all the leftover space and
    the row itself never has to grow wider than #grid-wrap (no more
@@ -342,7 +336,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .row-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-body { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#grid.title-only .row-body { display: none; }
+#grid .row-body { display: none; } /* list shows titles only */
 .row-date { font-size: 10px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; min-width: 56px; text-align: right; white-space: nowrap; }
 
 /* Mobile: swipe a row left to reveal pin/duplicate/delete actions in the
@@ -503,14 +497,6 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button type="button" class="search-clear" onclick="clearSearch()">×</button>
       </div>
       <button class="hbtn" id="ask-btn" title="AIに質問する" onclick="askAI()">✨</button>
-    </div>
-    <div id="sort-row">
-      <button class="sortbtn" id="sort-auto" onclick="setSortMode('auto')">🕒 更新順</button>
-      <button class="sortbtn" id="sort-manual" onclick="setSortMode('manual')">↕ 手動</button>
-    </div>
-    <div id="preview-row">
-      <button class="sortbtn active" id="preview-title" onclick="setCardPreviewMode('title')">タイトルのみ</button>
-      <button class="sortbtn" id="preview-full" onclick="setCardPreviewMode('preview')">中サイズ表示</button>
     </div>
     <div id="folder-label-row"><span>フォルダ</span></div>
     <div id="folder-list"></div>
@@ -673,7 +659,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
    Settings ................. per-account sort preferences (synced via Supabase)
    Tag filter ................ sidebar/mobile tag chips, filtering, manual order
    Grid rendering ............ pinned/unpinned groups, card vs list layout
-   Drag to reorder ........... pointer-based drag (mouse + long-press touch)
+   Drag to folder ............ pointer-based drag (mouse + long-press touch)
    Editor ..................... open/close, tag chips, save, offline-aware create
    Trash ...................... delete/restore
    Small helpers ............. esc/rel/setStatus etc
@@ -696,8 +682,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 let notes = [], trashList = [], currentId = null, inTrash = false, saveTimer = null;
-let query = '', sortMode = 'manual', activeTheme = null, dragMoved = false;
-let cardPreviewMode = 'title'; // 'preview' (title + short content snippet) or 'title' (title only)
+let query = '', activeTheme = null, dragMoved = false;
 let uid = null;
 /* Identifies this one continuous page load — not persisted, so a reload gets
    a fresh id. Written alongside every save so a later conflict can tell
@@ -1438,12 +1423,10 @@ async function loadSettings() {
   // during an active session (see wireSettingsRealtime/applySettings below).
   tagOrder = data ? (data.tag_order || []) : [];
   setTagSortMode(data ? (data.tag_sort_mode || 'alpha') : 'alpha', false);
-  setSortMode('auto', false);
 }
 
 function applySettings(row) {
   if (!row) return;
-  setSortMode(row.note_sort_mode || 'manual', false);
   tagOrder = row.tag_order || [];
   setTagSortMode(row.tag_sort_mode || 'alpha', false);
 }
@@ -1464,22 +1447,6 @@ function wireSettingsRealtime() {
       renderGrid();
     })
     .subscribe();
-}
-
-/* ── Sort mode ── */
-function setSortMode(mode, persist = true) {
-  sortMode = mode;
-  document.getElementById('sort-manual').className = mode === 'manual' ? 'sortbtn active' : 'sortbtn';
-  document.getElementById('sort-auto').className    = mode === 'auto'   ? 'sortbtn active' : 'sortbtn';
-  renderGrid();
-  if (persist) saveSettings({ note_sort_mode: mode });
-}
-
-function setCardPreviewMode(mode) {
-  cardPreviewMode = mode;
-  document.getElementById('preview-title').className = mode === 'title'   ? 'sortbtn active' : 'sortbtn';
-  document.getElementById('preview-full').className  = mode === 'preview' ? 'sortbtn active' : 'sortbtn';
-  renderGrid();
 }
 
 /* ── Tag filter (uses the "theme" data field) ── */
@@ -1836,9 +1803,7 @@ function getFiltered() {
   return list;
 }
 
-/* Manual drag-reordering is a PC-only feature (mobile keeps things simple:
-   always sorted by update time). This checks the layout live, so it stays
-   correct even if a desktop session's "manual" preference has synced in. */
+/* Live layout check (matches the CSS breakpoint). */
 function isMobileLayout() {
   return window.matchMedia('(max-width: 640px)').matches;
 }
@@ -1846,8 +1811,6 @@ function isMobileLayout() {
 function sortGroup(list) {
   if ((activeFolder === FOLDER_DAILY || activeFolder === FOLDER_URLS) && !inTrash) return list.sort(dailySortCompare);
   if (activeFolder === FOLDER_TEMPLATE && !inTrash) return list.sort(nameSortCompare);
-  const mode = isMobileLayout() ? 'auto' : sortMode;
-  if (mode === 'manual') return list.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   return list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
 }
 
@@ -1860,7 +1823,6 @@ function getSorted() {
 function renderGrid() {
   updateSynthButtonState();
   const el = document.getElementById('grid');
-  el.classList.toggle('title-only', cardPreviewMode === 'title');
   el.innerHTML = '';
   openSwipeItem = null; // its DOM node is about to be discarded — drop the stale reference
 
@@ -2105,7 +2067,7 @@ async function togglePin(id) {
   catch(e) { console.error('pin toggle error', e); }
 }
 
-/* ── Drag to reorder (mouse: press+move; touch: long-press+move) ──
+/* ── Drag a note onto a folder to file it (mouse: press+move; touch: long-press+move) ──
    Native HTML5 drag-and-drop doesn't work reliably for touch on iOS Safari
    (a press-and-hold there is captured as text selection instead), so this
    builds its own drag using Pointer Events, which covers mouse and touch
@@ -2114,7 +2076,6 @@ let ptrDrag = null; // { id, sourceItem }
 
 function wireDrag(item, n) {
   if (inTrash || activeFolder === FOLDER_DAILY || activeFolder === FOLDER_URLS || activeFolder === FOLDER_TEMPLATE) return; // fixed orders
-  if (!isMobileLayout() && sortMode !== 'manual') return; // desktop: reordering only in manual mode
   item.classList.add('drag-enabled');
   item.addEventListener('pointerdown', e => {
     if (e.target.closest('.pin-btn')) return;
@@ -2183,18 +2144,6 @@ function clearDropVisuals() {
   document.querySelectorAll('.folder-drop-hover').forEach(el => el.classList.remove('folder-drop-hover'));
 }
 
-function nextDragItem(item) {
-  let sib = item.nextElementSibling;
-  while (sib && !sib.classList.contains('row')) sib = sib.nextElementSibling;
-  return sib;
-}
-
-function prevDragItem(item) {
-  let sib = item.previousElementSibling;
-  while (sib && !sib.classList.contains('row')) sib = sib.previousElementSibling;
-  return sib;
-}
-
 function updateDropTarget(x, y, sourceItem) {
   clearDropVisuals();
   const el = document.elementFromPoint(x, y);
@@ -2207,28 +2156,8 @@ function updateDropTarget(x, y, sourceItem) {
     return;
   }
 
-  // Mobile has no manual reordering — dragging there is only for filing into a folder.
-  if (isMobileLayout()) { ptrDrag.target = null; return; }
-
-  const item = el && el.closest('.row');
-
-  if (item && item !== sourceItem) {
-    const rect = item.getBoundingClientRect();
-    const side = (y - rect.top) > rect.height / 2 ? 'after' : 'before';
-    ptrDrag.target = { id: item.dataset.id, side, pinnedGroup: item.closest('.group-list').dataset.pinnedGroup === '1' };
-
-    // Highlight both sides of the gap the note will drop into: the trailing
-    // edge of the item before the gap, and the leading edge of the item after it.
-    const leadItem  = side === 'before' ? item : nextDragItem(item);
-    const trailItem = side === 'before' ? prevDragItem(item) : item;
-    if (leadItem  && leadItem  !== sourceItem) leadItem.classList.add('drop-after');
-    if (trailItem && trailItem !== sourceItem) trailItem.classList.add('drop-before');
-    return;
-  }
-
-  // Not over an item — check whether we're over a group's empty space (append to end)
-  const group = el && el.closest('.group-list');
-  ptrDrag.target = group ? { id: null, side: null, pinnedGroup: group.dataset.pinnedGroup === '1' } : null;
+  // Dragging is only for filing a note into a folder (the list is always in updated order).
+  ptrDrag.target = null;
 }
 
 function finishDrag() {
@@ -2236,34 +2165,8 @@ function finishDrag() {
   ptrDrag.sourceItem.classList.remove('dragging');
   const t = ptrDrag.target;
   if (t && 'folderId' in t) assignToFolder(ptrDrag.id, t.folderId || null);
-  else if (t) reorder(ptrDrag.id, t.id, t.pinnedGroup, t.side === 'after');
   ptrDrag = null;
   setTimeout(() => { dragMoved = false; }, 30); // swallow the synthetic click that follows a drag
-}
-
-async function reorder(draggedId, targetId, targetPinned, insertAfter) {
-  const dragged = notes.find(n => n.id === draggedId);
-  if (!dragged) return;
-
-  // Build the destination group's current order (excluding the dragged note itself)
-  const group = sortGroup(getFiltered().filter(n => !!n.pinned === !!targetPinned && n.id !== draggedId));
-
-  dragged.pinned = !!targetPinned;
-
-  if (targetId) {
-    let to = group.findIndex(n => n.id === targetId);
-    if (to < 0) to = group.length;
-    else if (insertAfter) to += 1;
-    group.splice(to, 0, dragged);
-  } else {
-    group.push(dragged); // dropped on empty space -> append to end
-  }
-
-  group.forEach((n, i) => { n.sort_order = i; });
-  renderGrid();
-  try {
-    await Promise.all(group.map(n => sb.from('notes').update({ sort_order: n.sort_order, pinned: n.pinned }).eq('id', n.id)));
-  } catch(e) { console.error('reorder save error', e); }
 }
 
 function syncMobTitle() { document.getElementById('mob-title').textContent = document.getElementById('s-label').textContent; }
@@ -3297,7 +3200,6 @@ async function toggleTrash() {
   document.getElementById('mob-new-btn').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('trash-btn').className   = inTrash ? 'hbtn on' : 'hbtn';
   document.getElementById('mob-trash-btn').className = inTrash ? 'hbtn on' : 'hbtn';
-  document.getElementById('sort-row').style.display = inTrash ? 'none' : 'flex';
   document.getElementById('mob-search').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-folder-row').style.display = inTrash ? 'none' : '';
   document.getElementById('mob-tags-row').style.display = inTrash ? 'none' : '';
