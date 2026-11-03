@@ -75,15 +75,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #sw-btn.running { background: var(--red); border-color: var(--red); color: #fff; }
 #sw-time { font-family: var(--mono); font-size: 17px; color: var(--text2); font-variant-numeric: tabular-nums; }
 #sw-time.running { color: var(--text); }
-#sw-toggle-log { margin-left: auto; border: none; background: none; color: var(--text3); font-size: 11.5px; cursor: pointer; font-family: var(--sans); white-space: nowrap; }
-#sw-toggle-log:hover { color: var(--text); }
-#sw-log { display: none; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; font-size: 12px; color: var(--text2); }
-#sw-log.show { display: flex; }
-.sw-entry { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
-.sw-entry .sw-range { color: var(--text3); }
-.sw-entry .sw-dur { font-family: var(--mono); color: var(--text); }
-.sw-entry button { margin-left: auto; border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
-.sw-empty { color: var(--text3); }
+#sw-stop { margin-left: auto; flex: none; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text2); font-family: var(--sans); font-size: 12px; cursor: pointer; white-space: nowrap; }
+#sw-stop:hover { border-color: var(--text2); color: var(--text); }
 #clock-svg .face { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
 #clock-svg .tick { stroke: var(--text3); stroke-width: 1.2; stroke-linecap: round; }
 #clock-svg .tick.major { stroke: var(--text2); stroke-width: 2; }
@@ -499,11 +492,10 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       <div id="clock-text"><span id="clock-time">--:--:--</span><span id="clock-date"></span></div>
       </div>
       <div id="sw-row">
-        <button type="button" id="sw-btn" onclick="swToggle()">▶ 開始</button>
+        <button type="button" id="sw-btn" onclick="swSwitch()" title="押した時刻を 🌟Daily の今日のメモの先頭に「HH:MM：」と書き込みます">▶ 開始</button>
         <span id="sw-time">00:00:00</span>
-        <button type="button" id="sw-toggle-log" onclick="swToggleLog()">記録 ▾</button>
+        <button type="button" id="sw-stop" onclick="swStop()" title="終了時刻「HH:MM：終了」を書き込んで止める" style="display:none">■ 終了</button>
       </div>
-      <div id="sw-log"></div>
     </div>
     <div id="s-search">
       <div class="search-wrap" id="s-search-wrap">
@@ -2729,63 +2721,86 @@ function toggleUrlEdit() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
 })();
 
-/* ── Stopwatch / time tracker (digital only) ──
-   One start/stop button. Each stop files a record (start–end, duration) into
-   a log; the log panel lists today's records with a running total. The running
-   state is stored as a start timestamp, so it survives reloads and keeps
-   counting while the tab is closed. Stored per browser (localStorage), not
-   synced between devices. */
-const SW_STATE_KEY = 'swState', SW_LOG_KEY = 'swLog';
-let swTimer = null, swLogOpen = false;
-function swLoad(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch(e) { return fallback; } }
-function swSave(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
+/* ── Stopwatch / time tracker ──
+   One button that means "switch to the next task": every press writes a line
+   "HH:MM：" at the very top of today's note in 🌟Daily (falling back to the
+   first Daily note if there is no note titled with today's date) and restarts
+   the digital counter, which shows the time spent on the current task. ■ 終了
+   writes "HH:MM：終了" and stops. The task text is typed in afterwards.
+   Running state is a start timestamp in localStorage, so it survives reloads. */
+const SW_STATE_KEY = 'swState';
+let swTimer = null;
+function swLoad() { try { return JSON.parse(localStorage.getItem(SW_STATE_KEY)) || { running: false, since: 0 }; } catch(e) { return { running: false, since: 0 }; } }
+function swSave(st) { try { localStorage.setItem(SW_STATE_KEY, JSON.stringify(st)); } catch(e) {} }
 function swFmt(ms) {
   const t = Math.max(0, Math.floor(ms / 1000)), p = n => String(n).padStart(2, '0');
   return p(Math.floor(t / 3600)) + ':' + p(Math.floor(t % 3600 / 60)) + ':' + p(t % 60);
 }
-function swHM(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function swHM(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function swRender() {
-  const st = swLoad(SW_STATE_KEY, { running: false, startedAt: 0, last: 0 });
+  const st = swLoad();
   const btn = document.getElementById('sw-btn'), time = document.getElementById('sw-time');
-  btn.textContent = st.running ? '■ 停止' : '▶ 開始';
+  btn.textContent = st.running ? '⏭ 次の作業' : '▶ 開始';
   btn.classList.toggle('running', !!st.running);
   time.classList.toggle('running', !!st.running);
-  time.textContent = swFmt(st.running ? Date.now() - st.startedAt : (st.last || 0));
+  document.getElementById('sw-stop').style.display = st.running ? '' : 'none';
+  time.textContent = swFmt(st.running ? Date.now() - st.since : 0);
   if (st.running && !swTimer) swTimer = setInterval(swRender, 250);
   if (!st.running && swTimer) { clearInterval(swTimer); swTimer = null; }
-  // today's total in the log toggle
-  const start0 = new Date(); start0.setHours(0, 0, 0, 0);
-  const today = swLoad(SW_LOG_KEY, []).filter(r => r.start >= start0.getTime());
-  const total = today.reduce((a, r) => a + (r.end - r.start), 0);
-  document.getElementById('sw-toggle-log').textContent = '今日 ' + swFmt(total).replace(/^00:/, '') + (swLogOpen ? ' ▴' : ' ▾');
-  const log = document.getElementById('sw-log');
-  log.classList.toggle('show', swLogOpen);
-  if (swLogOpen) {
-    log.innerHTML = today.length ? '' : '<div class="sw-empty">今日の記録はまだありません</div>';
-    today.slice().reverse().slice(0, 30).forEach(r => {
-      const row = document.createElement('div'); row.className = 'sw-entry';
-      row.innerHTML = '<span class="sw-range">' + swHM(r.start) + '–' + swHM(r.end) + '</span><span class="sw-dur">' + swFmt(r.end - r.start) + '</span>';
-      const del = document.createElement('button'); del.type = 'button'; del.title = 'この記録を削除'; del.textContent = '×';
-      del.onclick = () => { swSave(SW_LOG_KEY, swLoad(SW_LOG_KEY, []).filter(x => x.start !== r.start)); swRender(); };
-      row.appendChild(del); log.appendChild(row);
-    });
-  }
 }
-function swToggle() {
-  const st = swLoad(SW_STATE_KEY, { running: false, startedAt: 0, last: 0 });
-  if (!st.running) {
-    swSave(SW_STATE_KEY, { running: true, startedAt: Date.now(), last: 0 });
-  } else {
-    const end = Date.now(), dur = end - st.startedAt;
-    if (dur >= 1000) {
-      const log = swLoad(SW_LOG_KEY, []); log.push({ start: st.startedAt, end });
-      swSave(SW_LOG_KEY, log.slice(-500));
-    }
-    swSave(SW_STATE_KEY, { running: false, startedAt: 0, last: dur });
+/* Which Daily note receives the lines: the one whose title has today's M月D日,
+   otherwise the first Daily note in list order. */
+function swPickTarget() {
+  const daily = notes.filter(n => isDailyFolderId(n.folder_id)).sort(dailySortCompare);
+  if (!daily.length) return null;
+  const now = new Date(), key = (now.getMonth() + 1) * 100 + now.getDate();
+  const hit = daily.find(n => {
+    const m = (n.title || '').normalize('NFKC').match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+    return m && Number(m[1]) * 100 + Number(m[2]) === key;
+  });
+  return hit || daily.find(n => n.pinned) || daily[0];
+}
+async function swInsertLine(line) {
+  const target = swPickTarget();
+  if (!target) { alert('🌟Daily フォルダにメモがありません。先にメモを1つ入れてください。'); return false; }
+  const ins = line + '\n';
+  if (target.id === currentId && !inTrash) {
+    // Open in the editor: edit the live text and let the normal autosave handle it.
+    const ta = document.getElementById('e-input');
+    const s0 = ta.selectionStart, e0 = ta.selectionEnd, top = ta.scrollTop, focused = document.activeElement === ta;
+    ta.value = ins + ta.value;
+    if (focused) ta.setSelectionRange(s0 + ins.length, e0 + ins.length);
+    ta.scrollTop = top;
+    onEdit(); updateCharCount();
+    return true;
   }
+  // Not open: write through the same draft → sync path used for offline edits.
+  const draft = loadPendingDraft(target.id);
+  const nd = {
+    type: draft ? draft.type : (target.__pendingCreate ? 'create' : 'update'),
+    title: draft ? draft.title : (target.title || ''),
+    content: ins + (draft ? draft.content : (target.content || '')),
+    theme: draft ? draft.theme : (target.theme || []),
+    baseUpdatedAt: draft ? draft.baseUpdatedAt : target.updated_at,
+    sort_order: target.sort_order ?? 0, pinned: !!target.pinned, folder_id: target.folder_id || null
+  };
+  savePendingDraft(target.id, nd);
+  target.content = nd.content;
+  renderGrid();
+  await flushOneDraft(target.id, nd);
+  return true;
+}
+async function swSwitch() {
+  const now = new Date();
+  if (!(await swInsertLine(swHM(now) + '：'))) return;
+  swSave({ running: true, since: now.getTime() });
   swRender();
 }
-function swToggleLog() { swLogOpen = !swLogOpen; swRender(); }
+async function swStop() {
+  if (!(await swInsertLine(swHM(new Date()) + '：終了'))) return;
+  swSave({ running: false, since: 0 });
+  swRender();
+}
 swRender();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') swRender(); });
 
