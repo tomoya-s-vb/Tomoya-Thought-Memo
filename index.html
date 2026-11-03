@@ -65,6 +65,19 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #sidebar { width: 250px; min-width: 250px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 #s-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 #s-title-col { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
+/* Clock (analog + digital + date) under the sidebar title */
+#s-clock { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+#clock-svg { width: 52px; height: 52px; flex: none; }
+#clock-svg .face { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+#clock-svg .tick { stroke: var(--text3); stroke-width: 1.2; stroke-linecap: round; }
+#clock-svg .tick.major { stroke: var(--text2); stroke-width: 2; }
+#clock-svg .hand { stroke: var(--text); stroke-linecap: round; }
+#clock-svg .sec { stroke: var(--red); stroke-width: 1; }
+#clock-svg .pin { fill: var(--red); }
+#clock-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#clock-time { font-family: var(--mono); font-size: 22px; line-height: 1.1; color: var(--text); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+#clock-date { font-size: 12.5px; color: var(--text2); }
+@media (max-width: 640px) { #s-clock { display: none; } }
 #s-label { font-family: var(--mono); font-size: 12px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; line-height: 28px; }
 #s-head-btns { display: flex; gap: 6px; }
 .export-menu-wrap { position: relative; }
@@ -456,6 +469,17 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button class="hbtn" id="trash-btn" title="ゴミ箱" onclick="toggleTrash()">🗑</button>
         <button class="hbtn" id="new-btn" title="新規 (Alt+N)" onclick="onNewClick()">＋</button>
       </div>
+    </div>
+    <div id="s-clock" aria-label="現在の日付と時刻">
+      <svg id="clock-svg" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="face" cx="50" cy="50" r="47"/>
+        <g id="clock-ticks"></g>
+        <line id="clock-h" class="hand" x1="50" y1="50" x2="50" y2="28" stroke-width="4.5"/>
+        <line id="clock-m" class="hand" x1="50" y1="50" x2="50" y2="15" stroke-width="3"/>
+        <line id="clock-s" class="hand sec" x1="50" y1="56" x2="50" y2="12"/>
+        <circle class="pin" cx="50" cy="50" r="3"/>
+      </svg>
+      <div id="clock-text"><span id="clock-time">--:--:--</span><span id="clock-date"></span></div>
     </div>
     <div id="s-search">
       <div class="search-wrap" id="s-search-wrap">
@@ -2653,6 +2677,33 @@ function toggleUrlEdit() {
     ta.setSelectionRange(ta.value.length, ta.value.length);
   }
 }
+
+/* ── Sidebar clock ── */
+(function initClock() {
+  const ticks = document.getElementById('clock-ticks');
+  for (let i = 0; i < 12; i++) {
+    const major = i % 3 === 0, a = i * Math.PI / 6, r1 = major ? 36 : 40, r2 = 44;
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('class', 'tick' + (major ? ' major' : ''));
+    l.setAttribute('x1', 50 + r1 * Math.sin(a)); l.setAttribute('y1', 50 - r1 * Math.cos(a));
+    l.setAttribute('x2', 50 + r2 * Math.sin(a)); l.setAttribute('y2', 50 - r2 * Math.cos(a));
+    ticks.appendChild(l);
+  }
+  const days = ['日','月','火','水','木','金','土'];
+  const pad = n => String(n).padStart(2, '0');
+  const rot = (id, deg) => document.getElementById(id).setAttribute('transform', 'rotate(' + deg + ' 50 50)');
+  function tick() {
+    const d = new Date(), h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    document.getElementById('clock-time').textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+    document.getElementById('clock-date').textContent = d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日(' + days[d.getDay()] + ')';
+    rot('clock-h', (h % 12) * 30 + m * 0.5);
+    rot('clock-m', m * 6 + s * 0.1);
+    rot('clock-s', s * 6);
+  }
+  tick();
+  setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
+})();
 
 function updateCharCount() {
   const len = document.getElementById('e-input').value.length;
