@@ -66,8 +66,24 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #s-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 #s-title-col { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
 /* Clock (analog + digital + date) under the sidebar title */
-#s-clock { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
-#clock-svg { width: 52px; height: 52px; flex: none; }
+#s-clock { display: flex; flex-direction: column; gap: 10px; padding: 10px 16px 12px; border-bottom: 1px solid var(--border); }
+#clock-main { display: flex; align-items: center; gap: 12px; }
+#clock-svg { width: 78px; height: 78px; flex: none; }
+#sw-row { display: flex; align-items: center; gap: 8px; }
+#sw-btn { flex: none; padding: 5px 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: var(--sans); font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+#sw-btn:hover { border-color: var(--text2); }
+#sw-btn.running { background: var(--red); border-color: var(--red); color: #fff; }
+#sw-time { font-family: var(--mono); font-size: 17px; color: var(--text2); font-variant-numeric: tabular-nums; }
+#sw-time.running { color: var(--text); }
+#sw-toggle-log { margin-left: auto; border: none; background: none; color: var(--text3); font-size: 11.5px; cursor: pointer; font-family: var(--sans); white-space: nowrap; }
+#sw-toggle-log:hover { color: var(--text); }
+#sw-log { display: none; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; font-size: 12px; color: var(--text2); }
+#sw-log.show { display: flex; }
+.sw-entry { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.sw-entry .sw-range { color: var(--text3); }
+.sw-entry .sw-dur { font-family: var(--mono); color: var(--text); }
+.sw-entry button { margin-left: auto; border: none; background: none; color: var(--text3); cursor: pointer; font-size: 13px; }
+.sw-empty { color: var(--text3); }
 #clock-svg .face { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
 #clock-svg .tick { stroke: var(--text3); stroke-width: 1.2; stroke-linecap: round; }
 #clock-svg .tick.major { stroke: var(--text2); stroke-width: 2; }
@@ -471,6 +487,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
       </div>
     </div>
     <div id="s-clock" aria-label="現在の日付と時刻">
+      <div id="clock-main">
       <svg id="clock-svg" viewBox="0 0 100 100" aria-hidden="true">
         <circle class="face" cx="50" cy="50" r="47"/>
         <g id="clock-ticks"></g>
@@ -480,6 +497,13 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <circle class="pin" cx="50" cy="50" r="3"/>
       </svg>
       <div id="clock-text"><span id="clock-time">--:--:--</span><span id="clock-date"></span></div>
+      </div>
+      <div id="sw-row">
+        <button type="button" id="sw-btn" onclick="swToggle()">▶ 開始</button>
+        <span id="sw-time">00:00:00</span>
+        <button type="button" id="sw-toggle-log" onclick="swToggleLog()">記録 ▾</button>
+      </div>
+      <div id="sw-log"></div>
     </div>
     <div id="s-search">
       <div class="search-wrap" id="s-search-wrap">
@@ -2704,6 +2728,66 @@ function toggleUrlEdit() {
   setInterval(tick, 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
 })();
+
+/* ── Stopwatch / time tracker (digital only) ──
+   One start/stop button. Each stop files a record (start–end, duration) into
+   a log; the log panel lists today's records with a running total. The running
+   state is stored as a start timestamp, so it survives reloads and keeps
+   counting while the tab is closed. Stored per browser (localStorage), not
+   synced between devices. */
+const SW_STATE_KEY = 'swState', SW_LOG_KEY = 'swLog';
+let swTimer = null, swLogOpen = false;
+function swLoad(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch(e) { return fallback; } }
+function swSave(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
+function swFmt(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000)), p = n => String(n).padStart(2, '0');
+  return p(Math.floor(t / 3600)) + ':' + p(Math.floor(t % 3600 / 60)) + ':' + p(t % 60);
+}
+function swHM(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function swRender() {
+  const st = swLoad(SW_STATE_KEY, { running: false, startedAt: 0, last: 0 });
+  const btn = document.getElementById('sw-btn'), time = document.getElementById('sw-time');
+  btn.textContent = st.running ? '■ 停止' : '▶ 開始';
+  btn.classList.toggle('running', !!st.running);
+  time.classList.toggle('running', !!st.running);
+  time.textContent = swFmt(st.running ? Date.now() - st.startedAt : (st.last || 0));
+  if (st.running && !swTimer) swTimer = setInterval(swRender, 250);
+  if (!st.running && swTimer) { clearInterval(swTimer); swTimer = null; }
+  // today's total in the log toggle
+  const start0 = new Date(); start0.setHours(0, 0, 0, 0);
+  const today = swLoad(SW_LOG_KEY, []).filter(r => r.start >= start0.getTime());
+  const total = today.reduce((a, r) => a + (r.end - r.start), 0);
+  document.getElementById('sw-toggle-log').textContent = '今日 ' + swFmt(total).replace(/^00:/, '') + (swLogOpen ? ' ▴' : ' ▾');
+  const log = document.getElementById('sw-log');
+  log.classList.toggle('show', swLogOpen);
+  if (swLogOpen) {
+    log.innerHTML = today.length ? '' : '<div class="sw-empty">今日の記録はまだありません</div>';
+    today.slice().reverse().slice(0, 30).forEach(r => {
+      const row = document.createElement('div'); row.className = 'sw-entry';
+      row.innerHTML = '<span class="sw-range">' + swHM(r.start) + '–' + swHM(r.end) + '</span><span class="sw-dur">' + swFmt(r.end - r.start) + '</span>';
+      const del = document.createElement('button'); del.type = 'button'; del.title = 'この記録を削除'; del.textContent = '×';
+      del.onclick = () => { swSave(SW_LOG_KEY, swLoad(SW_LOG_KEY, []).filter(x => x.start !== r.start)); swRender(); };
+      row.appendChild(del); log.appendChild(row);
+    });
+  }
+}
+function swToggle() {
+  const st = swLoad(SW_STATE_KEY, { running: false, startedAt: 0, last: 0 });
+  if (!st.running) {
+    swSave(SW_STATE_KEY, { running: true, startedAt: Date.now(), last: 0 });
+  } else {
+    const end = Date.now(), dur = end - st.startedAt;
+    if (dur >= 1000) {
+      const log = swLoad(SW_LOG_KEY, []); log.push({ start: st.startedAt, end });
+      swSave(SW_LOG_KEY, log.slice(-500));
+    }
+    swSave(SW_STATE_KEY, { running: false, startedAt: 0, last: dur });
+  }
+  swRender();
+}
+function swToggleLog() { swLogOpen = !swLogOpen; swRender(); }
+swRender();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') swRender(); });
 
 function updateCharCount() {
   const len = document.getElementById('e-input').value.length;
