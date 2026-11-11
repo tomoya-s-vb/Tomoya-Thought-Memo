@@ -22,7 +22,7 @@
   --bg: #f5f4f0; --surface: #faf9f7; --border: #e2e0d8;
   --text: #1a1916; --text2: #6b6860; --text3: #a9a79f; --soft: #e8e6df;
   --green: #2d6a4f; --greenbg: #eaf4ee; --red: #9b2c2c; --redbg: #fdf0f0;
-  --amber: #a9720b; --amberbg: #f8f0dd; --diff: rgba(214,158,46,.32);
+  --amber: #a9720b; --amberbg: #f8f0dd; --diff: rgba(214,158,46,.32); --search-hl: rgba(255,226,0,.62);
   --mono: 'BIZ UDGothic', monospace; --sans: 'BIZ UDPGothic', sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -30,7 +30,7 @@
     --bg: #141412; --surface: #1c1b18; --border: #2e2c28;
     --text: #f0ede6; --text2: #8a877e; --text3: #4a4844; --soft: #252320;
     --green: #4ade80; --greenbg: #0d2e1a; --red: #f87171; --redbg: #2a0f0f;
-    --amber: #f2c14e; --amberbg: #2b230e; --diff: rgba(242,193,78,.30);
+    --amber: #f2c14e; --amberbg: #2b230e; --diff: rgba(242,193,78,.30); --search-hl: rgba(255,214,10,.42);
   }
 }
 html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); overscroll-behavior: none; }
@@ -233,6 +233,8 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 }
 #e-hl.on { display: block; }
 #e-hl mark { background: var(--diff); color: transparent; border-radius: 2px; }
+#e-hl mark.s { background: var(--search-hl); }
+#e-view mark { background: var(--search-hl); color: inherit; border-radius: 2px; }
 #e-input {
   position: relative; z-index: 1;
   flex: 1; padding: 20px 24px; border: none; background: none; resize: none;
@@ -2247,8 +2249,11 @@ function rememberScroll() {
 }
 function restoreScrollFor(id) {
   const ta = document.getElementById('e-input');
-  const top = loadScrollMap()[id] || 0;
+  let top = loadScrollMap()[id] || 0;
   restoringScroll = true;
+  // With a search active, open at the first match instead of the remembered spot.
+  const first = (query || '').trim() ? document.querySelector('#e-hl mark.s') : null;
+  if (first && first.offsetParent) top = Math.max(0, first.offsetTop - 60);
   const apply = () => { ta.scrollTop = top; document.getElementById('e-hl').scrollTop = ta.scrollTop; };
   apply();
   requestAnimationFrame(() => { apply(); requestAnimationFrame(() => { restoringScroll = false; }); });
@@ -2374,19 +2379,71 @@ function diffRanges(a, b) {
   return { ranges, hunks };
 }
 
-function renderHighlight(text, ranges) {
+/* Draws the highlight layer from two independent range lists: `diff` (conflict
+   comparison, class "d") and `search` (the sidebar search words, class "s").
+   Text is cut at every range boundary so overlaps render correctly. */
+function renderHighlight(text, diff, search) {
   const hl = document.getElementById('e-hl');
-  const ta = document.getElementById('e-input');
-  ranges.sort((x, y) => x[0] - y[0]);
-  let html = '', pos = 0;
-  for (const [s, e] of ranges) {
-    if (s < pos) continue;
-    html += esc(text.slice(pos, s)) + '<mark>' + esc(text.slice(s, e)) + '</mark>';
-    pos = e;
+  const cuts = new Set([0, text.length]);
+  [diff, search].forEach(rs => rs.forEach(([a, b]) => { cuts.add(a); cuts.add(b); }));
+  const pts = [...cuts].filter(x => x >= 0 && x <= text.length).sort((x, y) => x - y);
+  const inAny = (rs, a, b) => rs.some(([s0, e0]) => s0 <= a && b <= e0);
+  let html = '';
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], seg = esc(text.slice(a, b));
+    const d = inAny(diff, a, b), q = inAny(search, a, b);
+    html += (d || q) ? '<mark class="' + (q ? 's' : 'd') + '">' + seg + '</mark>' : seg;
   }
-  hl.innerHTML = html + esc(text.slice(pos)) + '​'; // trailing char keeps a final empty line the same height as in the textarea
+  hl.innerHTML = html + '​'; // trailing char keeps a final empty line the same height as in the textarea
   hl.classList.add('on');
   syncHighlightMetrics();
+}
+/* Case-insensitive occurrences of each whitespace-separated search word. */
+function searchRangesFor(text) {
+  const words = (query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const low = text.toLowerCase(), out = [];
+  if (low.length !== text.length) return out; // exotic case-folding would shift offsets
+  words.forEach(w => {
+    let i = 0;
+    while (out.length < 3000 && (i = low.indexOf(w, i)) !== -1) { out.push([i, i + w.length]); i += w.length; }
+  });
+  out.sort((x, y) => x[0] - y[0]);
+  // merge overlaps
+  const merged = [];
+  out.forEach(r => { const l = merged[merged.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else merged.push(r.slice()); });
+  return merged;
+}
+let diffRangesNow = [];
+function applyHighlights() {
+  const hl = document.getElementById('e-hl');
+  const text = document.getElementById('e-input').value;
+  const sr = (currentId && !inTrash) ? searchRangesFor(text) : [];
+  if (!diffRangesNow.length && !sr.length) { hl.classList.remove('on'); hl.innerHTML = ''; return; }
+  renderHighlight(text, diffRangesNow, sr);
+}
+/* Same search highlighting inside the clickable-links view. */
+function highlightSearchIn(el) {
+  const words = (query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return;
+  const re = new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes = []; let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  nodes.forEach(node => {
+    const t = node.nodeValue; re.lastIndex = 0;
+    if (!re.test(t)) return;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment(); let last = 0, m;
+    while ((m = re.exec(t))) {
+      if (!m[0]) { re.lastIndex++; continue; }
+      frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+      const mk = document.createElement('mark'); mk.textContent = m[0]; frag.appendChild(mk);
+      last = m.index + m[0].length;
+    }
+    frag.appendChild(document.createTextNode(t.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  });
 }
 function syncHighlightMetrics() {
   const ta = document.getElementById('e-input'), hl = document.getElementById('e-hl');
@@ -2397,19 +2454,19 @@ window.addEventListener('resize', () => { if (document.getElementById('e-hl').cl
 
 let conflictTimer = null, conflictCtx = null;
 function scheduleConflictUpdate() {
+  if (!diffRangesNow.length) applyHighlights(); // keep search marks aligned while typing
   clearTimeout(conflictTimer);
   conflictTimer = setTimeout(updateConflictView, 350);
 }
 function updateConflictView() {
   clearTimeout(conflictTimer);
   const row = document.getElementById('e-conflict-row');
-  const hl = document.getElementById('e-hl');
   const note = (!inTrash && currentId) ? notes.find(n => n.id === currentId) : null;
   const found = note ? findConflictCounterpart(note) : null;
   if (!found) {
     conflictCtx = null;
     row.classList.remove('show');
-    hl.classList.remove('on'); hl.innerHTML = '';
+    diffRangesNow = []; applyHighlights();
     return;
   }
   conflictCtx = found;
@@ -2421,15 +2478,15 @@ function updateConflictView() {
     msg.textContent = isCopy
       ? '⚠ 競合コピーです。元のメモと内容は同じです(このコピーは削除して大丈夫です)'
       : '⚠ 競合コピーがありますが、内容はこのメモと同じです(コピーは削除して大丈夫です)';
-    hl.classList.remove('on'); hl.innerHTML = '';
+    diffRangesNow = [];
   } else {
     msg.textContent = (isCopy
       ? '⚠ 競合コピーです。元のメモと違う箇所をハイライトしています'
       : '⚠ このメモの競合コピーがあります。コピーと違う箇所をハイライトしています') + '(相違 ' + hunks + ' 箇所)' +
       (ranges.length ? '' : ' ※相手のメモにだけある文章のため、このメモ側には色が付きません');
-    if (ranges.length) renderHighlight(mine, ranges);
-    else { hl.classList.remove('on'); hl.innerHTML = ''; }
+    diffRangesNow = ranges;
   }
+  applyHighlights();
   document.getElementById('e-conflict-open').textContent = isCopy ? '元のメモを開く' : '競合コピーを開く';
   row.classList.add('show');
 }
@@ -2566,7 +2623,9 @@ function linkifyHtml(text) {
   return out.join('\n');
 }
 function renderUrlView() {
-  document.getElementById('e-view').innerHTML = linkifyHtml(document.getElementById('e-input').value || '');
+  const v = document.getElementById('e-view');
+  v.innerHTML = linkifyHtml(document.getElementById('e-input').value || '');
+  highlightSearchIn(v);
 }
 function currentNoteInUrls() {
   if (!currentId || inTrash) return false;
@@ -2707,10 +2766,41 @@ async function swStop() {
 swRender();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') swRender(); });
 
-function updateCharCount() {
-  const len = document.getElementById('e-input').value.length;
-  document.getElementById('e-charcount').textContent = len.toLocaleString('ja-JP') + '字';
+/* Character count. With text selected (drag / shift+arrows in the editor, or
+   a selection in the links view) the figure switches to the selection:
+   Japanese counts characters (spaces excluded), English counts words; mixed
+   text shows both, e.g. "選択 120字 + 35語". */
+function countSelection(t) {
+  const cjk = /[぀-ヿ㐀-鿿ｦ-ﾟ]/.test(t);
+  const wordRe = cjk ? /[A-Za-z]+(?:['’\-][A-Za-z0-9]+)*[A-Za-z0-9]*/g : /[A-Za-z0-9]+(?:['’\-][A-Za-z0-9]+)*/g;
+  const words = (t.match(wordRe) || []).length;
+  const chars = [...t.replace(wordRe, '').replace(/[\s\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/g, '')].length; // ASCII punctuation isn't counted
+  return { chars, words };
 }
+function currentSelectionText() {
+  const ta = document.getElementById('e-input');
+  if (urlViewMode) {
+    const g = window.getSelection();
+    return (g && g.rangeCount && document.getElementById('e-view').contains(g.anchorNode)) ? g.toString() : '';
+  }
+  return (document.activeElement === ta && ta.selectionEnd > ta.selectionStart) ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : '';
+}
+function updateCharCount() {
+  const el = document.getElementById('e-charcount');
+  const sel = currentSelectionText();
+  if (sel.trim()) {
+    const { chars, words } = countSelection(sel);
+    const parts = [];
+    if (chars) parts.push(chars.toLocaleString('ja-JP') + '字');
+    if (words) parts.push(words.toLocaleString('ja-JP') + '語');
+    if (parts.length) { el.textContent = '選択 ' + parts.join(' + '); el.style.color = 'var(--amber)'; return; }
+  }
+  el.style.color = '';
+  el.textContent = document.getElementById('e-input').value.length.toLocaleString('ja-JP') + '字';
+}
+['select', 'keyup', 'mouseup', 'touchend', 'blur'].forEach(ev =>
+  document.getElementById('e-input').addEventListener(ev, updateCharCount));
+document.addEventListener('selectionchange', () => { if (document.getElementById('editor').classList.contains('open') || !isMobileLayout()) updateCharCount(); });
 
 /* Enter in the title box jumps the cursor into the body. isComposing guards
    the Enter that merely confirms a Japanese IME conversion (that one must
@@ -3221,6 +3311,7 @@ function onSearch(v) {
   document.getElementById('s-search-wrap').classList.toggle('has-text', !!v);
   document.getElementById('mob-search-wrap').classList.toggle('has-text', !!v);
   renderGrid();
+  if (currentId && !inTrash) { applyHighlights(); if (urlViewMode) renderUrlView(); }
 }
 
 function clearSearch() {
