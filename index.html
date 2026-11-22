@@ -205,6 +205,9 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
 #e-status { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 #e-status.ok { color: var(--green); }
 #e-status.err { color: var(--red); }
+#e-count-wrap { display: flex; align-items: center; gap: 8px; flex: none; }
+#e-squash { padding: 2px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); font-size: 11px; font-family: var(--sans); cursor: pointer; white-space: nowrap; }
+#e-squash:hover { border-color: var(--text2); color: var(--text); }
 #e-charcount { font-size: 11px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
 .ebtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 12px; font-family: var(--mono); cursor: pointer; transition: .15s; }
 .ebtn:hover { background: var(--soft); color: var(--text); }
@@ -420,7 +423,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
   .ebtn { padding: 5px 8px; font-size: 15px; }
   #e-title { order: 7; flex-basis: 100%; }
   #e-status { position: absolute; top: 38px; left: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
-  #e-charcount { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
+  #e-count-wrap { position: absolute; top: 38px; right: 18px; background: var(--surface); padding: 2px 7px; border-radius: 5px; z-index: 5; }
 
   /* Prevent iOS Safari auto-zoom on focus (needs >=16px font-size on inputs) */
   #search-input, #mob-search-input, #e-title, #e-tag-input, #e-input, #e-hl, #e-view, #login-email, #login-pass { font-size: 16px; }
@@ -553,7 +556,7 @@ html, body { height: 100%; font-family: var(--sans); background: var(--bg); colo
         <button id="e-back" onclick="closeEditor()">← 一覧</button>
         <input id="e-title" placeholder="タイトル…" oninput="onEdit()">
         <span id="e-status"></span>
-        <span id="e-charcount">0字</span>
+        <span id="e-count-wrap"><button type="button" id="e-squash" onmousedown="event.preventDefault()" onclick="squashSelection()" title="選択範囲のスペース・改行をすべて削除して1行にする" style="display:none">⤢ 詰める</button><span id="e-charcount">0字</span></span>
         <button class="ebtn" id="btn-edit" onclick="toggleUrlEdit()" style="display:none" title="編集 / リンク表示の切り替え">🖊<span class="ebtn-label">編集</span></button>
         <button class="ebtn" id="btn-focus" onclick="toggleFocusMode()" title="集中モード">🎯<span class="ebtn-label">集中</span></button>
         <button class="ebtn" id="btn-links" onclick="showLinksPopup()" title="リンク">🔗<span class="ebtn-label">リンク</span></button>
@@ -2785,9 +2788,28 @@ function currentSelectionText() {
   }
   return (document.activeElement === ta && ta.selectionEnd > ta.selectionStart) ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : '';
 }
+function squashSelection() {
+  const ta = document.getElementById('e-input');
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  if (urlViewMode || b <= a) return;
+  const out = ta.value.slice(a, b).replace(/[\s\u3000]+/g, '');
+  ta.focus();
+  ta.setSelectionRange(a, b);
+  // execCommand keeps the browser's undo history (Ctrl+Z restores the original); fall back to setRangeText.
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, out); } catch(e) {}
+  if (!ok) { ta.setRangeText(out, a, b, 'end'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+  ta.setSelectionRange(a, a + out.length);
+  onEdit();
+  updateCharCount();
+}
 function updateCharCount() {
   const el = document.getElementById('e-charcount');
   const sel = currentSelectionText();
+  const ta0 = document.getElementById('e-input');
+  const rawSel = urlViewMode ? '' : ta0.value.slice(ta0.selectionStart, ta0.selectionEnd);
+  const keep = document.activeElement === ta0 || document.activeElement === document.getElementById('e-squash');
+  document.getElementById('e-squash').style.display = (keep && /[\s\u3000]/.test(rawSel)) ? '' : 'none';
   if (sel.trim()) {
     const { chars, words } = countSelection(sel);
     const parts = [];
@@ -2798,8 +2820,9 @@ function updateCharCount() {
   el.style.color = '';
   el.textContent = document.getElementById('e-input').value.length.toLocaleString('ja-JP') + '字';
 }
-['select', 'keyup', 'mouseup', 'touchend', 'blur'].forEach(ev =>
+['select', 'keyup', 'mouseup', 'touchend'].forEach(ev =>
   document.getElementById('e-input').addEventListener(ev, updateCharCount));
+document.getElementById('e-input').addEventListener('blur', () => setTimeout(updateCharCount, 300)); // small delay so a tap on the 詰める button isn't lost
 document.addEventListener('selectionchange', () => { if (document.getElementById('editor').classList.contains('open') || !isMobileLayout()) updateCharCount(); });
 
 /* Enter in the title box jumps the cursor into the body. isComposing guards
